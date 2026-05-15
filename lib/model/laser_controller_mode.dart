@@ -1,0 +1,1 @@
+enum LaserControllerMode { movimentoAssistito, movimentoManuale, freeDraw }

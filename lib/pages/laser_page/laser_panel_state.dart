@@ -1,0 +1,4 @@
+enum LaserPanelState {
+  joystick,
+  tipoSaldatura,
+}
