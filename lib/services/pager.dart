@@ -1,13 +1,51 @@
 import 'package:flutter/material.dart';
 import 'package:grw_laser/pages/laser_page_hub/laser_page_hub.dart';
+import 'package:grw_laser/pages/login_page/login_page.dart';
 
 class Pager {
   static void setFirstPageLogin({required BuildContext context}) {
-    setFirstPageNamed(context: context, pageName: "/login");
+    Navigator.of(context).pushAndRemoveUntil(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 400),
+        pageBuilder: (context, animation, secondaryAnimation) => LoginPage(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final tween = Tween(begin: const Offset(0, 1), end: Offset.zero)
+              .chain(CurveTween(curve: Curves.easeInOut));
+          return SlideTransition(
+              position: animation.drive(tween), child: child);
+        },
+      ),
+      (route) => false,
+    );
   }
 
   static void setFirstPageHome({required BuildContext context}) {
-    setFirstPage(context: context, page: LaserPageHub());
+    Navigator.of(context).pushAndRemoveUntil(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 400),
+        pageBuilder: (context, animation, secondaryAnimation) => LaserPageHub(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final tween = Tween(begin: const Offset(0, -1), end: Offset.zero)
+              .chain(CurveTween(curve: Curves.easeInOut));
+          return SlideTransition(
+              position: animation.drive(tween), child: child);
+        },
+      ),
+      (route) => false,
+    );
+  }
+
+  static void setFirstPageHomeImmediate({required BuildContext context}) {
+    Navigator.of(context).pushAndRemoveUntil(
+      PageRouteBuilder(
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (context, animation, secondaryAnimation) => LaserPageHub(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+            child,
+      ),
+      (route) => false,
+    );
   }
 
   static void setFirstPageNamed(

@@ -12,6 +12,7 @@ import 'package:grw_laser/services/api.dart';
 import 'package:grw_laser/services/hive_disk_encoder.dart';
 import 'package:grw_laser/services/messenger.dart';
 import 'package:grw_laser/services/pager.dart';
+import 'package:grw_laser/services/user_session_nest.dart';
 
 //
 //
@@ -307,9 +308,9 @@ class LaserPageHubController {
   void closePage({required BuildContext context}) async {
     final confirmed = await Messenger.askMessage(
           context,
-          "CONFERMA",
-          "CONFERMI DI USCIRE DALLA PAGINA?",
-          "ESCI DALLA PAGINA",
+          "LOGOUT",
+          "CONFERMI IL LOGOUT?",
+          "LOGOUT",
           "ANNULLA",
         ) ??
         false;
@@ -324,9 +325,9 @@ class LaserPageHubController {
       this.laserPages = [];
 
       storeSettingsListToDisk();
-      // elimino tutto anche da box:
 
-      Pager.goToFirstPage(context);
+      await UserSessionNest.eraseSession();
+      Pager.setFirstPageLogin(context: context);
     }
   }
 

@@ -51,6 +51,9 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
   bool isUpdateAvailable = false;
 
+  late AnimationController _exitController;
+  late Animation<Offset> _slideOutAnimation;
+
   final box = HiveDiskEncoder();
 
   Future<bool> login(String username, String password) async {
@@ -172,7 +175,7 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         // verifico presenza utente:
         UserSessionNest.loadSessionFromDisk();
         if (UserSessionNest.isLogged) {
-          Pager.setFirstPageHome(context: context);
+          _navigateHome();
         } else {
           print("User Is Not Logged");
         }
@@ -242,11 +245,21 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       }
     });
 
+    _exitController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+    );
+    _slideOutAnimation = Tween<Offset>(
+      begin: Offset.zero,
+      end: const Offset(0, 1),
+    ).animate(CurvedAnimation(parent: _exitController, curve: Curves.easeIn));
+
     super.initState();
   }
 
   @override
   void dispose() {
+    _exitController.dispose();
     super.dispose();
   }
 
@@ -257,9 +270,14 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         .textTheme
         .bodyLarge!
         .copyWith(fontWeight: FontWeight.w500);
-    return PopScope(
-      canPop: false,
-      child: Scaffold(
+    return Stack(
+      children: [
+        const ColoredBox(color: Colors.white, child: SizedBox.expand()),
+        SlideTransition(
+          position: _slideOutAnimation,
+          child: PopScope(
+        canPop: false,
+        child: Scaffold(
           resizeToAvoidBottomInset: false,
           body: Stack(children: <Widget>[
             Image.asset(
@@ -390,8 +408,7 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                                                   .toString()));
                                                 }
 
-                                                Pager.setFirstPageHome(
-                                                    context: context);
+                                                _navigateHome();
                                               }
                                             } else {
 
@@ -498,7 +515,16 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
               ],
             ),
           ])),
+        ),
+        ),
+      ],
     );
+  }
+
+  Future<void> _navigateHome() async {
+    await _exitController.forward();
+    if (!mounted) return;
+    Pager.setFirstPageHomeImmediate(context: context);
   }
 
   void mySetState(VoidCallback? f) {
