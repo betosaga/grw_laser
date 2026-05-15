@@ -142,7 +142,7 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
           await ListsStore.eraseAllData();
           DBManager.newBuildNumber = int.parse(dati['build']);
         }
-
+        //
         aggiornamento = false;
         mySetState(() {
           isUpdateAvailable = false;
