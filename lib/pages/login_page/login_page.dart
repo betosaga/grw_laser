@@ -8,7 +8,6 @@ import 'package:grw_laser/common_components/loading_spinner.dart';
 import 'package:grw_laser/configuration/constants.dart';
 import 'package:grw_laser/extensions/color_with_alpha_double.dart';
 import 'package:grw_laser/model/response/response_error.dart';
-import 'package:grw_laser/model/squadra.dart';
 import 'package:grw_laser/services/api.dart';
 import 'package:grw_laser/services/db_manager.dart';
 import 'package:grw_laser/services/device_id_service.dart';
@@ -77,7 +76,6 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       UserSessionNest.buildUtenteFromData(data: response.body);
 
       if (UserSessionNest.isLogged) {
-        await getSquadre();
         re = true;
       }
     } catch (e) {
@@ -92,28 +90,6 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     });
 
     return re;
-  }
-
-  Future<void> getSquadre() async {
-    try {
-      final response = await Api.request({
-        "f": "getSquadre",
-      });
-      final dati = jsonDecode(response.body);
-      ListsStore.listaSquadre.clear();
-      for (int i = 0; i < dati.length; i++) {
-        ListsStore.listaSquadre.add(new Squadra(
-          id: dati[i]['id'],
-          nome: dati[i]['nome'].toString(),
-          ordine: dati[i]['ordine'],
-        ));
-      }
-    } catch (e) {
-      if (e is ResponseError) {
-        if (e.message.trim() != "")
-          Messenger.showMessageGenericError(context, e.message, 2);
-      }
-    }
   }
 
   Future<bool> verificaAggiornamenti() async {
