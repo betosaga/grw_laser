@@ -5,7 +5,7 @@ import 'package:grw_laser/services/vibrator.dart';
 
 class LaserSaldaStrato extends StatelessWidget {
   final LaserPageController laserPageController;
-  const LaserSaldaStrato({
+  const LaserSaldaStrato({super.key, 
     required this.laserPageController,
   });
 
@@ -56,7 +56,7 @@ class LaserSaldaStrato extends StatelessWidget {
                           //   laserPageController.onSaldaStratoPressed(p, context);
                           // },
                           child: Text(
-                            "Strato\n" + (p + 1).toString(),
+                            "Strato\n${p + 1}",
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Colors

@@ -13,7 +13,7 @@ import 'package:grw_laser/services/color_service.dart';
 
 class LaserTopActionsBar extends StatelessWidget {
   final LaserPageController controller;
-  LaserTopActionsBar({required this.controller});
+  const LaserTopActionsBar({super.key, required this.controller});
 
   String get _controrotaiaLabel {
     switch (controller.controrotaiaModeValue) {

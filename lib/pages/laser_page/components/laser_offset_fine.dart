@@ -5,7 +5,7 @@ import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
 
 class LaserOffsetFine extends StatelessWidget {
   final LaserPageController controller;
-  const LaserOffsetFine({required this.controller});
+  const LaserOffsetFine({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -37,8 +37,7 @@ class LaserOffsetFine extends StatelessWidget {
                         contentPadding: EdgeInsets.symmetric(
                             horizontal: 6), // Imposta il padding a 2 pixel
                         border: OutlineInputBorder(), // Aggiungi un bordo
-                        labelText: 'mm S' +
-                            (p + 1).toString(), // Etichetta del campo di testo
+                        labelText: 'mm S${p + 1}', // Etichetta del campo di testo
                       ),
                       controller: controller.offsetfineController[p],
                     ))),

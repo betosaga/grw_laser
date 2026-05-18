@@ -8,7 +8,7 @@ import 'package:unicons/unicons.dart';
 
 class LaserJ6Joystick extends StatelessWidget {
   final LaserPageController controller;
-  LaserJ6Joystick({required this.controller});
+  const LaserJ6Joystick({super.key, required this.controller});
 
   final double iconSize = 58;
 

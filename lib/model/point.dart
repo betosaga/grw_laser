@@ -41,8 +41,8 @@ class Point {
       this.jt4 = 0.0,
       this.jt5 = 0.0,
       this.jt6 = 0.0,
-      this.dashboardPosition = null,
-      this.order = null,
+      this.dashboardPosition,
+      this.order,
       this.isFirst = false,
       this.positionJ});
 
@@ -108,12 +108,12 @@ class Point {
   }
 
   bool isEqualTo({required Point point}) {
-    return this.x == point.x &&
-        this.y == point.y &&
-        this.z == point.z &&
-        this.j1 == point.j1 &&
-        this.j2 == point.j2 &&
-        this.j3 == point.j3;
+    return x == point.x &&
+        y == point.y &&
+        z == point.z &&
+        j1 == point.j1 &&
+        j2 == point.j2 &&
+        j3 == point.j3;
   }
 }
 

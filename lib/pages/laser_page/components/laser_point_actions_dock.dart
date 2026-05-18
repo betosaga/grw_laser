@@ -10,7 +10,7 @@ class LaserPointActionsDock extends StatefulWidget {
   final LaserPageController controller;
   final bool alignRight;
 
-  const LaserPointActionsDock({
+  const LaserPointActionsDock({super.key, 
     required this.controller,
     required this.alignRight,
   });

@@ -11,13 +11,13 @@ import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
 class LaserJoystickDashboard extends StatelessWidget {
   final LaserPageController controller;
 
-  const LaserJoystickDashboard({required this.controller});
+  const LaserJoystickDashboard({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {
     final mirrored = controller.panelAlignment == 'right';
 
-    final joystickWidget = Container(
+    final joystickWidget = SizedBox(
       width: 34.w,
       child: LaserJoystick(controller: controller),
     );

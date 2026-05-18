@@ -6,7 +6,7 @@ import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
 class LaserVelocitaSaldatura extends StatelessWidget {
   final LaserPageController controller;
 
-  const LaserVelocitaSaldatura({required this.controller});
+  const LaserVelocitaSaldatura({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -37,8 +37,7 @@ class LaserVelocitaSaldatura extends StatelessWidget {
                         contentPadding: EdgeInsets.symmetric(
                             horizontal: 6), // Imposta il padding a 2 pixel
                         border: OutlineInputBorder(), // Aggiungi un bordo
-                        labelText: 'V' +
-                            (p + 1).toString(), // Etichetta del campo di testo
+                        labelText: 'V${p + 1}', // Etichetta del campo di testo
                       ),
                       controller: controller.velocitaSaldaturaController[p],
                     ))),

@@ -5,7 +5,7 @@ import 'package:grw_laser/services/vibrator.dart';
 
 class LaserPageTitle extends StatelessWidget {
   final LaserPageHubController controller;
-  LaserPageTitle({required this.controller});
+  const LaserPageTitle({super.key, required this.controller});
   @override
   Widget build(BuildContext context) {
     return Row(

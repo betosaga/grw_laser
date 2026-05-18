@@ -8,7 +8,7 @@ class LaserSimulationPage extends StatelessWidget {
   //
   //
   final String textToShow;
-  const LaserSimulationPage({required this.textToShow});
+  const LaserSimulationPage({super.key, required this.textToShow});
   //
   //
   //

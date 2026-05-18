@@ -8,7 +8,7 @@ import 'package:grw_laser/pages/laser_page_hub/laser_page_hub_controller.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 class LaserPageHub extends StatefulWidget {
-  LaserPageHub({super.key});
+  const LaserPageHub({super.key});
 
   @override
   State<LaserPageHub> createState() => _LaserPageHubState();
@@ -53,7 +53,7 @@ class _LaserPageHubState extends State<LaserPageHub> {
             ? Center(
                 child: LoadingSpinner(color: AppColors.sagaBlue),
               )
-            : controller.laserPages.length > 0
+            : controller.laserPages.isNotEmpty
                 ? PageView.builder(
                     controller: controller.pageController,
                     onPageChanged: controller.onLaserPageChanged,

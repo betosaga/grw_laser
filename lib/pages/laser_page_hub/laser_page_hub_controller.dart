@@ -43,11 +43,10 @@ class LaserPageHubController {
 
   void toggleScrollViewEnabledScrolling() {
     scrollViewEnabledScrolling = !scrollViewEnabledScrolling;
-    laserPages.forEach((element) {
+    for (var element in laserPages) {
       element.controller
           .setScrollViewEnabledScrolling(newValue: scrollViewEnabledScrolling);
-      ;
-    });
+    }
   }
 
   //
@@ -322,7 +321,7 @@ class LaserPageHubController {
       for (var i = 0; i < laserPages.length; i++) {
         await laserPages[i].controller.eraseController();
       }
-      this.laserPages = [];
+      laserPages = [];
 
       storeSettingsListToDisk();
 

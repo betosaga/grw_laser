@@ -9,7 +9,7 @@ import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
 
 class LaserWeldingArea extends StatelessWidget {
   final LaserPageController controller;
-  LaserWeldingArea({required this.controller});
+  const LaserWeldingArea({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {

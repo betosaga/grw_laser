@@ -6,7 +6,7 @@ import 'package:grw_laser/services/vibrator.dart';
 
 class LaserDebugButton extends StatelessWidget {
   final LaserPageController controller;
-  const LaserDebugButton({required this.controller});
+  const LaserDebugButton({super.key, required this.controller});
 
   Future<void> _showDebugDialog(BuildContext context) async {
     final textController = TextEditingController();

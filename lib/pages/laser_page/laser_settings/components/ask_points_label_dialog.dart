@@ -4,7 +4,7 @@ import 'package:grw_laser/services/pager.dart';
 import 'package:grw_laser/services/vibrator.dart';
 
 class AskPointsLabelDialog extends StatelessWidget {
-  AskPointsLabelDialog({String initialLabel = ""})
+  AskPointsLabelDialog({super.key, String initialLabel = ""})
       : editingController = TextEditingController(text: initialLabel);
 
   final TextEditingController editingController;

@@ -125,7 +125,7 @@ class Pager {
       required String page,
       bool modal = false,
       bool popBefore = false,
-      Object? arguments = null}) {
+      Object? arguments}) {
     if (popBefore) {
       pop(context);
     }

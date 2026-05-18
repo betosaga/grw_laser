@@ -7,7 +7,7 @@ import 'package:grw_laser/services/vibrator.dart';
 class LaserStepSelector extends StatefulWidget {
   final LaserPageController controller;
 
-  const LaserStepSelector({required this.controller});
+  const LaserStepSelector({super.key, required this.controller});
 
   @override
   State<LaserStepSelector> createState() => _LaserStepSelectorState();

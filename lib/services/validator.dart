@@ -4,10 +4,11 @@ class Validator {
 
     if (input.indexOf("+") == (input.length - 4) &&
         input.length == 7 &&
-        input.isNotEmpty)
+        input.isNotEmpty) {
       b = true;
-    else
+    } else {
       b = false;
+    }
 
     return b;
   }

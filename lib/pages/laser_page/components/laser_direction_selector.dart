@@ -7,7 +7,7 @@ import 'package:grw_laser/services/vibrator.dart';
 class LaserDirectionSelector extends StatelessWidget {
   final LaserPageController controller;
 
-  LaserDirectionSelector({required this.controller});
+  const LaserDirectionSelector({super.key, required this.controller});
 
   Widget _buildRobotDirectionImage() {
     return SizedBox(

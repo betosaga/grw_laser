@@ -5,7 +5,7 @@ import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
 class LaserTakenPointsDisplay extends StatelessWidget {
   final LaserPageController controller;
   final bool fillAvailableHeight;
-  const LaserTakenPointsDisplay({
+  const LaserTakenPointsDisplay({super.key, 
     required this.controller,
     this.fillAvailableHeight = false,
   });

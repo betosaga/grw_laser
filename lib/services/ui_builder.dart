@@ -80,10 +80,11 @@ class UIBuilder {
       maxLength: 3,
       autovalidateMode: AutovalidateMode.always,
       validator: (value) {
-        if (value!.length < ncontrol)
+        if (value!.length < ncontrol) {
           return "";
-        else
+        } else {
           return null;
+        }
       },
       inputFormatters: <TextInputFormatter>[
         FilteringTextInputFormatter.digitsOnly
@@ -230,9 +231,10 @@ class UIBuilder {
                             color: Colors.white,
                           ),
                           onPressed: () {
-                            if (controller.text.isNotEmpty)
+                            if (controller.text.isNotEmpty) {
                               controller.text = controller.text
                                   .substring(0, controller.text.length - 1);
+                            }
                           },
                         )))),
             letterButton('à', controller, 6.7, 6.7),
@@ -316,7 +318,7 @@ class UIBuilder {
                             color: Colors.white,
                           ),
                           onPressed: () {
-                            controller.text = controller.text + " ";
+                            controller.text = "${controller.text} ";
                           },
                         )))),
             letterButton('B', controller, 6.5, 6.5),
@@ -385,9 +387,10 @@ class UIBuilder {
                             color: Colors.white,
                           ),
                           onPressed: () {
-                            if (controller.text.isNotEmpty)
+                            if (controller.text.isNotEmpty) {
                               controller.text = controller.text
                                   .substring(0, controller.text.length - 1);
+                            }
                           },
                         )))),
           ],
@@ -450,9 +453,10 @@ class UIBuilder {
                             color: Colors.white,
                           ),
                           onPressed: () {
-                            if (controller.text.isNotEmpty)
+                            if (controller.text.isNotEmpty) {
                               controller.text = controller.text
                                   .substring(0, controller.text.length - 1);
+                            }
                           },
                         )))),
           ],
@@ -518,9 +522,10 @@ class UIBuilder {
                             color: Colors.white,
                           ),
                           onPressed: () {
-                            if (controller.text.isNotEmpty)
+                            if (controller.text.isNotEmpty) {
                               controller.text = controller.text
                                   .substring(0, controller.text.length - 1);
+                            }
                           },
                         )))),
             letterButton('+', controller, 7, 7),
@@ -592,9 +597,10 @@ class UIBuilder {
                             color: Colors.white,
                           ),
                           onPressed: () {
-                            if (controller.text.isNotEmpty)
+                            if (controller.text.isNotEmpty) {
                               controller.text = controller.text
                                   .substring(0, controller.text.length - 1);
+                            }
                           },
                         )))),
           ],

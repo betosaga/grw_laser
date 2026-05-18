@@ -5,7 +5,7 @@ class LaserRobotCompactField extends StatelessWidget {
   final TextEditingController controller;
   final double? fieldWidth;
 
-  const LaserRobotCompactField({
+  const LaserRobotCompactField({super.key, 
     required this.title,
     required this.controller,
     this.fieldWidth,

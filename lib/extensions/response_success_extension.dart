@@ -3,5 +3,5 @@
 import 'package:http/http.dart';
 
 extension ResponseSuccess on Response {
-  bool get isSuccess => this.statusCode >= 200 && this.statusCode <= 299;
+  bool get isSuccess => statusCode >= 200 && statusCode <= 299;
 }

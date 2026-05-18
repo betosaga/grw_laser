@@ -7,7 +7,7 @@ import 'package:unicons/unicons.dart';
 class LaserActionPanel extends StatefulWidget {
   final LaserPageController controller;
 
-  const LaserActionPanel({required this.controller});
+  const LaserActionPanel({super.key, required this.controller});
 
   @override
   State<LaserActionPanel> createState() => _LaserActionPanelState();

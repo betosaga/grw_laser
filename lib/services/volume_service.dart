@@ -7,7 +7,7 @@ class VolumeService {
   static double pitch = 0.5;
   static double rate = Platform.isIOS ? 0.5 : 0.6;
 
-  static setMaximumVolume() {
+  static void setMaximumVolume() {
     VolumeController().setVolume(1.0);
   }
 }

@@ -286,13 +286,13 @@ class Messenger {
                       numeroCordoneController.text = "0";
                     }
                   },
-                  child: Icon(Icons.remove, color: Colors.white),
                   style: ElevatedButton.styleFrom(
                     shape: CircleBorder(),
                     padding: EdgeInsets.all(4),
                     backgroundColor: AppColors.sagaBlue, // <-- Button color
                     foregroundColor: AppColors.sagaBlue, // <-- Splash color
                   ),
+                  child: Icon(Icons.remove, color: Colors.white),
                 ),
               ),
               SizedBox(
@@ -323,13 +323,13 @@ class Messenger {
                       numeroCordoneController.text = "0";
                     }
                   },
-                  child: Icon(Icons.add, color: Colors.white),
                   style: ElevatedButton.styleFrom(
                     shape: CircleBorder(),
                     padding: EdgeInsets.all(4),
                     backgroundColor: AppColors.sagaBlue, // <-- Button color
                     foregroundColor: AppColors.sagaBlue, // <-- Splash color
                   ),
+                  child: Icon(Icons.add, color: Colors.white),
                 ),
               ),
             ],
@@ -402,7 +402,7 @@ class Messenger {
   static Future<bool?> askMessageTaratura(
       context, String title, String m, String atrue, String afalse) async {
     // set up the buttons
-    Widget taraturaButton = Container(
+    Widget taraturaButton = SizedBox(
         width: 100,
         child: TextButton(
           style: TextButton.styleFrom(
@@ -415,7 +415,7 @@ class Messenger {
           onPressed: () => Pager.pop(context, false),
         ));
 
-    Widget esameButton = Container(
+    Widget esameButton = SizedBox(
         width: 100,
         child: TextButton(
           style: TextButton.styleFrom(
@@ -464,7 +464,7 @@ class Messenger {
   static Future<bool?> showDefaultConfirm(
       context, String title, String m, String atrue, String afalse) async {
     // set up the buttons
-    Widget cancelButton = Container(
+    Widget cancelButton = SizedBox(
         width: 100,
         child: TextButton(
           style: TextButton.styleFrom(
@@ -477,7 +477,7 @@ class Messenger {
           onPressed: () => Pager.pop(context, false),
         ));
 
-    Widget continueButton = Container(
+    Widget continueButton = SizedBox(
         width: 100,
         child: TextButton(
           style: TextButton.styleFrom(
@@ -537,7 +537,7 @@ class Messenger {
   static Future<bool?> askMessageConf(
       context, String title, String m, String atrue, String afalse) async {
     // set up the buttons
-    Widget cancelButton = Container(
+    Widget cancelButton = SizedBox(
         width: 100,
         child: TextButton(
           style: TextButton.styleFrom(
@@ -549,7 +549,7 @@ class Messenger {
           onPressed: () => Pager.pop(context, false),
         ));
 
-    Widget continueButton = Container(
+    Widget continueButton = SizedBox(
         width: 100,
         child: TextButton(
           style: TextButton.styleFrom(
@@ -570,7 +570,7 @@ class Messenger {
             textAlign: TextAlign.center,
           ),
           Divider(height: 20, color: Colors.transparent),
-          Container(width: 300, child: Image.asset('images/targhetta.jpg'))
+          SizedBox(width: 300, child: Image.asset('images/targhetta.jpg'))
         ],
       ),
       content: Text(
@@ -608,7 +608,7 @@ class Messenger {
     // set up the AlertDialog
     AlertDialog alert = AlertDialog(
       title: Text(title),
-      content: Container(
+      content: SizedBox(
           height: 250,
           child: Column(
             children: [
@@ -652,7 +652,7 @@ class Messenger {
     // set up the AlertDialog
     AlertDialog alert = AlertDialog(
       title: Text(title),
-      content: Container(
+      content: SizedBox(
           height: 200,
           child: Column(
             children: [

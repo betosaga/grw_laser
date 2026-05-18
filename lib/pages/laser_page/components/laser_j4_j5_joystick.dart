@@ -7,7 +7,7 @@ class LaserJ4J5Joystick extends StatelessWidget {
   final LaserPageController controller;
   //
   //
-  LaserJ4J5Joystick({required this.controller});
+  const LaserJ4J5Joystick({super.key, required this.controller});
   //
   //
   Future<void> onButtonJ5Pressed(double delta) async {

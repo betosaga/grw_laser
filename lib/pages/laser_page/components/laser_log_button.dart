@@ -4,7 +4,7 @@ import 'package:grw_laser/services/vibrator.dart';
 
 class LaserLogButton extends StatelessWidget {
   final LaserPageController controller;
-  LaserLogButton({required this.controller});
+  const LaserLogButton({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {

@@ -21,7 +21,7 @@ class Crypto {
     EncryptPack.Key keyObj = EncryptPack.Key.fromUtf8(key);
     final encrypter = EncryptPack.Encrypter(EncryptPack.AES(keyObj,
         mode: EncryptPack.AESMode.cbc)); // Apply CBC mode
-    String firstBase64Decoding = new String.fromCharCodes(
+    String firstBase64Decoding = String.fromCharCodes(
         ConvertPack.base64.decode(payload)); // First Base64 decoding
     final decrypted = encrypter.decrypt(
         EncryptPack.Encrypted.fromBase64(firstBase64Decoding),
@@ -73,7 +73,7 @@ class Crypto {
     EncryptPack.Key keyObj = EncryptPack.Key.fromUtf8(key);
     final encrypter = EncryptPack.Encrypter(EncryptPack.AES(keyObj,
         mode: EncryptPack.AESMode.cbc)); // Apply CBC mode
-    String firstBase64Decoding = new String.fromCharCodes(
+    String firstBase64Decoding = String.fromCharCodes(
         ConvertPack.base64.decode(payload)); // First Base64 decoding
     final decrypted = encrypter.decrypt(
         EncryptPack.Encrypted.fromBase64(firstBase64Decoding),
@@ -84,12 +84,12 @@ class Crypto {
   static String c(String payload) {
     String strPwd = "4afa838c38";
 
-    const _chars =
+    const chars =
         'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz';
-    Random _rnd = Random();
+    Random rnd = Random();
 
     String strIv = String.fromCharCodes(Iterable.generate(
-        10, (_) => _chars.codeUnitAt(_rnd.nextInt(_chars.length))));
+        10, (_) => chars.codeUnitAt(rnd.nextInt(chars.length))));
 
     var iv = CryptoPack.sha256
         .convert(ConvertPack.utf8.encode(strIv))

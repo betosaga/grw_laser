@@ -8,7 +8,7 @@ import 'package:grw_laser/services/vibrator.dart';
 class SelectLaserRobotSettingsDialog extends StatelessWidget {
   final List<LaserRobotSettings> list;
 
-  SelectLaserRobotSettingsDialog({required this.list});
+  const SelectLaserRobotSettingsDialog({super.key, required this.list});
 
   @override
   Widget build(BuildContext context) {

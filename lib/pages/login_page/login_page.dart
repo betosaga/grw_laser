@@ -24,6 +24,8 @@ import 'package:grw_laser/services/size_config.dart';
 import 'package:grw_laser/services/crypto.dart';
 
 class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
+
   @override
   LoginPageState createState() => LoginPageState();
 }
@@ -80,8 +82,9 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       }
     } catch (e) {
       if (e is ResponseError) {
-        if (e.message.trim() != "")
+        if (e.message.trim() != "") {
           Messenger.showMessageGenericError(context, e.message, 2);
+        }
       }
     }
 
@@ -158,9 +161,7 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       }
 
       DBManager.dbversion = dati['dbversion'];
-      if (DBManager.dbversionpref == null) {
-        DBManager.dbversionpref = dati['dbversion'];
-      }
+      DBManager.dbversionpref ??= dati['dbversion'];
     } catch (e) {
       print(e.toString());
 
@@ -171,8 +172,9 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       });
 
       if (e is ResponseError) {
-        if (e.message.trim() != "")
+        if (e.message.trim() != "") {
           Messenger.showMessageGenericError(context, e.message, 2);
+        }
       }
     }
     return updatesAvailable;
@@ -344,7 +346,7 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                           ? LoadingSpinner(color: Colors.blue)
                           : isUpdateAvailable
                               ? Container()
-                              : Container(
+                              : SizedBox(
                                   height: 7.h,
                                   child: TextButton(
                                     onPressed: () async {
@@ -372,8 +374,7 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                                   TTSService.speak(
                                                       "benvenuto signor iddio onnipotente");
                                                 } else {
-                                                  TTSService.speak("benvenuto " +
-                                                      (Constants.DEBUGMODE
+                                                  TTSService.speak("benvenuto ${Constants.DEBUGMODE
                                                           ? "Signore"
                                                           : UserSessionNest
                                                                   .utente!.nome
@@ -381,7 +382,7 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                                               UserSessionNest
                                                                   .utente!
                                                                   .cognome
-                                                                  .toString()));
+                                                                  .toString()}");
                                                 }
 
                                                 _navigateHome();

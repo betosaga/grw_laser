@@ -24,7 +24,7 @@ class PointsFree {
   // + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + -
   // + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + -
   bool get isFirstPointSet =>
-      points.where((e) => e.isFirst).toList().length > 0;
+      points.where((e) => e.isFirst).toList().isNotEmpty;
 
   // + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + -
   // + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + -
@@ -58,7 +58,7 @@ class PointsFree {
   }
 
   void set({required List<Point> newPoints}) {
-    this.points = newPoints;
+    points = newPoints;
   }
 
   // + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + -
@@ -153,11 +153,11 @@ class PointsFree {
       };
 
   String toJSONString() {
-    return json.encode(this.toJson());
+    return json.encode(toJson());
   }
 
   void printAll() {
-    print(this.toJSONString());
+    print(toJSONString());
   }
 
   int getNextOrderNumber() {

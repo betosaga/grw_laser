@@ -8,7 +8,7 @@ import 'package:grw_laser/services/vibrator.dart';
 
 class LaserShowOptionsButton extends StatelessWidget {
   final LaserPageController controller;
-  const LaserShowOptionsButton({required this.controller});
+  const LaserShowOptionsButton({super.key, required this.controller});
 
   final double _width = 300;
   final double _verticalSpace = 8;
@@ -42,7 +42,7 @@ class LaserShowOptionsButton extends StatelessWidget {
                     SizedBox(
                       height: _verticalSpace,
                     ),
-                    Container(
+                    SizedBox(
                       width: _width,
                       child: Listener(
                         onPointerDown: (_) => Vibrator.shortVibration(),
@@ -64,7 +64,7 @@ class LaserShowOptionsButton extends StatelessWidget {
                     SizedBox(
                       height: _verticalSpace,
                     ),
-                    Container(
+                    SizedBox(
                       width: _width,
                       child: TextButton(
                         style: ButtonStyle(
@@ -121,7 +121,7 @@ class LaserShowOptionsButton extends StatelessWidget {
                           ),
                           if (!controller.isControrotaiaSemplice &&
                               !controller.isPianoRotolamento)
-                          Container(
+                          SizedBox(
                             width: _width,
                             child: TextButton(
                                 style: ButtonStyle(
@@ -168,7 +168,7 @@ class LaserShowOptionsButton extends StatelessWidget {
                           ),
                           if (!controller.isControrotaiaSemplice &&
                               !controller.isPianoRotolamento)
-                          Container(
+                          SizedBox(
                             width: _width,
                             child: TextButton(
                                 style: ButtonStyle(
@@ -215,7 +215,7 @@ class LaserShowOptionsButton extends StatelessWidget {
                           ),
                           if (!controller.isControrotaiaSemplice &&
                               !controller.isPianoRotolamento)
-                          Container(
+                          SizedBox(
                             width: _width,
                             child: TextButton(
                                 style: ButtonStyle(
@@ -260,7 +260,7 @@ class LaserShowOptionsButton extends StatelessWidget {
                           SizedBox(
                             height: _verticalSpace,
                           ),
-                          Container(
+                          SizedBox(
                             width: _width,
                             child: TextButton(
                                 style: ButtonStyle(
@@ -301,7 +301,7 @@ class LaserShowOptionsButton extends StatelessWidget {
                                 )),
                           ),
                           SizedBox(height: _verticalSpace),
-                          Container(
+                          SizedBox(
                             width: _width,
                             child: Listener(
                               onPointerDown: (_) => Vibrator.shortVibration(),

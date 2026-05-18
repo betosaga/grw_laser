@@ -4,7 +4,7 @@ import 'package:grw_laser/services/vibrator.dart';
 
 class LaserToggleJoystickButton extends StatelessWidget {
   final LaserPageController controller;
-  const LaserToggleJoystickButton({required this.controller});
+  const LaserToggleJoystickButton({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {

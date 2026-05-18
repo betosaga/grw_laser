@@ -2,10 +2,10 @@ import 'dart:ui';
 
 extension ColorWithAlphaDouble on Color {
   Color withAlphaDouble({required double alpha}) {
-    return this.withAlpha(alpha.toInt());
+    return withAlpha(alpha.toInt());
   }
 
   Color withAlphaFromOpacity({required double alpha}) {
-    return this.withAlpha((alpha * 255).toInt());
+    return withAlpha((alpha * 255).toInt());
   }
 }

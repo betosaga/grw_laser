@@ -14,7 +14,7 @@ class ContinuousPressButton extends StatefulWidget {
   final String? stepLabel;
   final bool showLabelOnTop;
 
-  ContinuousPressButton.LaserContinuousPressButton({
+  const ContinuousPressButton.LaserContinuousPressButton({super.key, 
     required this.icon,
     required this.onPressed,
     required this.locked,

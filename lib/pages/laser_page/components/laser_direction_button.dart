@@ -5,7 +5,7 @@ class LaserDirectionButton extends StatelessWidget {
   final String direction;
   final VoidCallback onPressed;
 
-  LaserDirectionButton({required this.direction, required this.onPressed});
+  const LaserDirectionButton({super.key, required this.direction, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {

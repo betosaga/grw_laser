@@ -5,7 +5,7 @@ import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
 class LaserPositionDashboard extends StatelessWidget {
   final LaserPageController controller;
 
-  LaserPositionDashboard({
+  const LaserPositionDashboard({super.key, 
     required this.controller,
   });
 

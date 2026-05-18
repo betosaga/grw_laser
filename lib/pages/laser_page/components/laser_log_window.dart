@@ -4,7 +4,7 @@ import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
 
 class LaserLogWindow extends StatefulWidget {
   final LaserPageController controller;
-  LaserLogWindow({required this.controller});
+  const LaserLogWindow({super.key, required this.controller});
 
   final double windowWidth = 450.0;
   final double windowHeight = 300.0;

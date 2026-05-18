@@ -3,7 +3,7 @@ import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
 
 class LaserSovrapposizioneCordone extends StatelessWidget {
   final LaserPageController controller;
-  const LaserSovrapposizioneCordone({required this.controller});
+  const LaserSovrapposizioneCordone({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {

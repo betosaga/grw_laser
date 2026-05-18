@@ -4,7 +4,7 @@ import 'package:grw_laser/services/vibrator.dart';
 
 class LaserChooseRobotButton extends StatelessWidget {
   final LaserPageHubController controller;
-  const LaserChooseRobotButton({required this.controller});
+  const LaserChooseRobotButton({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {

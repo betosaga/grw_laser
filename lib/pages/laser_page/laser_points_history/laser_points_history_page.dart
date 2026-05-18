@@ -11,7 +11,7 @@ import 'package:grw_laser/services/vibrator.dart';
 class LaserPointsHistoryPage extends StatefulWidget {
   final LaserPageController laserPageController;
 
-  LaserPointsHistoryPage({required this.laserPageController});
+  LaserPointsHistoryPage({super.key, required this.laserPageController});
   final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
 
   @override
@@ -56,7 +56,7 @@ class _LaserPointsHistoryPageState extends State<LaserPointsHistoryPage> {
         ),
         body: isLoading
             ? Center(child: CircularProgressIndicator())
-            : pointsList.length == 0
+            : pointsList.isEmpty
                 ? Center(
                     child: Text(
                       "NESSUN SET DI PUNTI PRESENTE",

@@ -4,7 +4,7 @@ import 'package:syncfusion_flutter_sliders/sliders.dart';
 
 class LaserXSlider extends StatefulWidget {
   final LaserPageController controller;
-  LaserXSlider({required this.controller});
+  const LaserXSlider({super.key, required this.controller});
   @override
   _LaserXSliderState createState() => _LaserXSliderState();
 }

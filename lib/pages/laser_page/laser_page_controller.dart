@@ -134,8 +134,8 @@ class LaserPageController {
   double altezzacontrorotaia = 100;
   double rientrocontrorotaia = 50;
   final widgetList = [];
-  Point posizioneRobot = new Point();
-  Point lastRobotPosition = new Point();
+  Point posizioneRobot = Point();
+  Point lastRobotPosition = Point();
   List<double> robotSpeed = [0, 0, 0, 0, 0, 0];
   int cordone = 0;
   int strato = 1;
@@ -276,67 +276,67 @@ class LaserPageController {
   String? lastFrameReason;
 
   List<TextEditingController> offsetinizioController = [
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
   ];
 
   List<TextEditingController> offsetfineController = [
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
   ];
 
   List<TextEditingController> larghezzasaldaturaController = [
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
   ];
 
   List<TextEditingController> velocitaSaldaturaController = [
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
   ];
   List<TextEditingController> offsetStratoController = [
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
-    new TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController(),
   ];
 
   Map<String, List<StratoLaser>> stratiEseguiti = {};
@@ -952,7 +952,7 @@ class LaserPageController {
     if (!initialized) {
       initialized = true;
     } else {
-      this.redrawPoints();
+      redrawPoints();
       return;
     }
     _applyDirectionDefaultsForTipo();
@@ -1665,37 +1665,37 @@ class LaserPageController {
               // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
 
               final point = j['MSG']['Point'];
-              final position_j = j['MSG']['PositionJ'];
-              List<double>? position_j_array;
+              final positionJ = j['MSG']['PositionJ'];
+              List<double>? positionJArray;
               PointJ? pointj;
 
-              if (position_j != null) {
+              if (positionJ != null) {
                 try {
-                  if (position_j is String) {
+                  if (positionJ is String) {
                     // Se è una stringa, la decodifichiamo prima in una lista dinamica
-                    final List<dynamic> decoded = jsonDecode(position_j);
-                    position_j_array =
+                    final List<dynamic> decoded = jsonDecode(positionJ);
+                    positionJArray =
                         decoded.map((e) => (e as num).toDouble()).toList();
-                  } else if (position_j is List) {
+                  } else if (positionJ is List) {
                     // Se è già una lista (formato JSON standard), la mappiamo in double
-                    position_j_array =
-                        position_j.map((e) => (e as num).toDouble()).toList();
+                    positionJArray =
+                        positionJ.map((e) => (e as num).toDouble()).toList();
                   }
                 } catch (e) {
                   // Gestione errore decodifica o cast
-                  position_j_array = null;
+                  positionJArray = null;
                 }
               }
 
-              if (position_j_array != null) {
-                pointj = PointJ(position_j_array);
+              if (positionJArray != null) {
+                pointj = PointJ(positionJArray);
               }
 
               // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
               // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
               // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
 
-              print("POSITON J ARRAY: ${position_j_array}");
+              print("POSITON J ARRAY: $positionJArray");
 
               // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
               // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
@@ -1757,8 +1757,9 @@ class LaserPageController {
               mySetState?.call(() {
                 //
                 //
-                if (j['MSG']['LaserStatus'] != null)
+                if (j['MSG']['LaserStatus'] != null) {
                   laserStatus = j['MSG']['LaserStatus'];
+                }
                 if (currentCordone != null) {
                   cordone = currentCordone;
                 }
@@ -1812,7 +1813,7 @@ class LaserPageController {
               break;
             case 'SafePosition':
               try {
-                print("${json.encode(j)}");
+                print(json.encode(j));
 
                 final msg = j['MSG'] as Map<String, dynamic>;
                 final orientation =
@@ -2098,13 +2099,13 @@ class LaserPageController {
                   armPosition = null;
                 });
               }
-              if (this.armPosition != null) {
+              if (armPosition != null) {
                 final first = points.firstPoint();
                 if (first != null) {
                   dashboardSetDStart?.call(
                       first.x,
                       isPianoRotolamento ? first.y * -1 : first.z,
-                      this.armPosition!); // ci va posizione robot
+                      armPosition!); // ci va posizione robot
                 }
               } else {
                 //print("Arm Position IS NULL");
@@ -2140,7 +2141,7 @@ class LaserPageController {
                     frameHeight = height;
                   });
                 } catch (e) {
-                  printLog("FRAME: " + e.toString());
+                  printLog("FRAME: $e");
                 }
               }
               break;
@@ -2195,7 +2196,7 @@ class LaserPageController {
       }
     } catch (e) {
       //
-      print("[getPoint] ERROR: ${e}");
+      print("[getPoint] ERROR: $e");
       //
       mySetState?.call(() {
         canMoveRobot = true;
@@ -2409,10 +2410,10 @@ class LaserPageController {
     print("");
     print(title);
     stratiEseguiti.forEach((key, value) {
-      value.forEach((element) {
+      for (var element in value) {
         print(
             " - - - > eseguito: ${element.eseguito}, durata: ${element.durata}");
-      });
+      }
     });
     print("");
     print("");
@@ -2448,14 +2449,14 @@ class LaserPageController {
   void onPointSelected(String e, BuildContext context) async {
     // se è il d_start e il movimento è assistito devo chiedere le dimensioni del frame
     if (e == "d_start" &&
-        this.controllerMode == LaserControllerMode.movimentoAssistito) {
+        controllerMode == LaserControllerMode.movimentoAssistito) {
       print("[getPoint] PASSO QUI 1");
       final framesetResult = await showDialog(
           barrierDismissible: false,
           context: context,
           builder: (context) => LaserFrameDimensionsDialog(
-              widthController: this.frameWidthController,
-              heightController: this.frameHeightController));
+              widthController: frameWidthController,
+              heightController: frameHeightController));
 
       if (framesetResult == 'confirm') {
         print("[getPoint] SETPOINT $e");
@@ -2466,7 +2467,7 @@ class LaserPageController {
           "allontanamento_y": settings.scostamentoY,
           "allontanamento_z": settings.scostamentoZ,
           "assisted":
-              this.controllerMode == LaserControllerMode.movimentoAssistito
+              controllerMode == LaserControllerMode.movimentoAssistito
                   ? 1
                   : 0
         });
@@ -2481,7 +2482,7 @@ class LaserPageController {
         "allontanamento_y": settings.scostamentoY,
         "allontanamento_z": settings.scostamentoZ,
         "assisted":
-            this.controllerMode == LaserControllerMode.movimentoAssistito
+            controllerMode == LaserControllerMode.movimentoAssistito
                 ? 1
                 : 0,
       });
@@ -2527,7 +2528,7 @@ class LaserPageController {
       }
     }
 
-    bool _alternataTemp = false;
+    bool alternataTemp = false;
     final confirmed = await showDialog<bool>(
           context: context,
           barrierDismissible: false,
@@ -2541,8 +2542,8 @@ class LaserPageController {
                   const SizedBox(height: 12),
                   SwitchListTile(
                     title: const Text("Alternata"),
-                    value: _alternataTemp,
-                    onChanged: (v) => setDialogState(() => _alternataTemp = v),
+                    value: alternataTemp,
+                    onChanged: (v) => setDialogState(() => alternataTemp = v),
                     contentPadding: EdgeInsets.zero,
                   ),
                 ],
@@ -2568,7 +2569,7 @@ class LaserPageController {
         ) ??
         false;
     if (confirmed) {
-      alternata = _alternataTemp;
+      alternata = alternataTemp;
       if (points.isEmpty) {
         // Snackbar rimosso
         return;
@@ -2611,7 +2612,7 @@ class LaserPageController {
       //
       //
       //
-      this.strato = p;
+      strato = p;
       //
       //
       //
@@ -2720,8 +2721,8 @@ class LaserPageController {
             offsetfineController[stratoIndex].text,
             offsetfine[stratoIndex].toDouble()),
         "lastcordone": "$startingCordone",
-        "strato": this.strato.toString(),
-        "speed": this.velocitaSaldaturaController[this.strato].text.trim(),
+        "strato": strato.toString(),
+        "speed": velocitaSaldaturaController[strato].text.trim(),
         "step_layer_x": layerPayload["step_layer_x"],
         "step_layer_y": layerPayload["step_layer_y"],
         "step_layer_z": layerPayload["step_layer_z"],
@@ -2735,7 +2736,7 @@ class LaserPageController {
         "pin_gas": settings.pinGas,
         "pin_massa": settings.pinMassa,
         "sovrapposizione_cordone": sovrapposizioneCordone.text.trim(),
-        "larghezzacordone": this.larghezzaCordone.text.trim(),
+        "larghezzacordone": larghezzaCordone.text.trim(),
         "laseron_wait_startcordone": _parseDecimalStringOrDefault(
             waitLaseronStartCordoneController.text,
             defaultWaitLaseronStartCordone),
@@ -2880,8 +2881,8 @@ class LaserPageController {
 
     if (!confirmed) return;
     buildReconnectionTimer();
-    await this.connettiRobot();
-    this.testolog = "";
+    await connettiRobot();
+    testolog = "";
     mySetState?.call(() {});
   }
 
@@ -2900,7 +2901,7 @@ class LaserPageController {
     closeSocket();
     destroyReconnectionTimer();
     mySetState?.call(() {
-      this.connectionStatus = false;
+      connectionStatus = false;
       homeReachReceived = false;
       canMoveRobot = true;
     });
@@ -2908,7 +2909,7 @@ class LaserPageController {
   }
 
   void buildReconnectionTimer() {
-    print("[ buildReconnectionTimer ] : ${UNLOCK_PAGE_FOR_TEST}");
+    print("[ buildReconnectionTimer ] : $UNLOCK_PAGE_FOR_TEST");
     timerReconnection =
         Timer.periodic(Duration(seconds: 5), (Timer timer) async {
       if (!connectionStatus && !UNLOCK_PAGE_FOR_TEST) {
@@ -2941,7 +2942,7 @@ class LaserPageController {
       totalReset();
 
       mySetState?.call(() {
-        this.connectionStatus = false;
+        connectionStatus = false;
       });
 
       dashboardSetCanMoveRobot?.call(true);
@@ -2955,7 +2956,7 @@ class LaserPageController {
     closeSocket();
     totalReset();
     mySetState?.call(() {
-      this.connectionStatus = false;
+      connectionStatus = false;
       homeReachReceived = false;
     });
 
@@ -2965,7 +2966,7 @@ class LaserPageController {
 
   void toggleJoystick() {
     mySetState?.call(() {
-      this.mostraJoystick = !this.mostraJoystick;
+      mostraJoystick = !mostraJoystick;
     });
   }
 
@@ -2994,7 +2995,7 @@ class LaserPageController {
         false;
     if (confirmed) {
       // Carica i punti nel grafico senza automatizzare state/robot
-      this.replacePunti(newPoints: ultimiPuntiSalvati!);
+      replacePunti(newPoints: ultimiPuntiSalvati!);
       mySetState?.call(() {});
 
       // Se i punti sono ordinati, abilita il bottone "genera punti"
@@ -3011,10 +3012,10 @@ class LaserPageController {
   //
   //
   Future<void> loadPoints({required PointsFree newPoints}) async {
-    this.replacePunti(newPoints: newPoints);
+    replacePunti(newPoints: newPoints);
 
     mySetState?.call(() {
-      this.pageState = LaserPanelState.tipoSaldatura;
+      pageState = LaserPanelState.tipoSaldatura;
     });
 
     resetStratiEseguiti();
@@ -3023,9 +3024,9 @@ class LaserPageController {
   //
   //
   Future<void> deleteAllSavedPoints() async {
-    await this.resetPunti();
-    await this.resetPoints();
-    this.resetFrame();
+    await resetPunti();
+    await resetPoints();
+    resetFrame();
     dashboardResetVersion++;
     dashboardClear?.call();
   }
@@ -3074,7 +3075,7 @@ class LaserPageController {
   //
   //
   Future<void> laserDirectionSelected({required bool selection}) async {
-    if (selection == this.armPosition) return;
+    if (selection == armPosition) return;
 
     Vibrator.mediumVibration();
     playAlertSound();
@@ -3093,9 +3094,9 @@ class LaserPageController {
           false;
       if (confirmTorch) {
         mySetState?.call(() {
-          this.armPosition = selection;
+          armPosition = selection;
         });
-        this.sendArmPosition();
+        sendArmPosition();
       }
     }
   }
@@ -3104,7 +3105,7 @@ class LaserPageController {
   //
   void movimentoAutomaticoChanged(LaserControllerMode value) {
     mySetState?.call(() {
-      this.controllerMode = value;
+      controllerMode = value;
     });
   }
 
@@ -3112,16 +3113,16 @@ class LaserPageController {
   //
   Future<void> destraSinistraChanged(bool? value) async {
     if (value != null) {
-      if (value == this.armPosition) return;
+      if (value == armPosition) return;
       final confirmed = await Messenger.askMessageAlert(context, "CONFERMA",
               "CAMBIARE POSIZIONE ROBOT?", "CAMBIA POSIZIONE", "ANNULLA") ??
           false;
 
       if (confirmed) {
         mySetState?.call(() {
-          this.armPosition = value;
+          armPosition = value;
         });
-        this.sendArmPosition();
+        sendArmPosition();
       }
     }
   }
@@ -3311,7 +3312,7 @@ class LaserPageController {
   Future<void> loadPointsFromHistory(
       {required LaserPointsPackage pointsPackage}) async {
     // Carica i punti nel grafico senza automatizzare state/robot
-    this.replacePunti(newPoints: pointsPackage.points);
+    replacePunti(newPoints: pointsPackage.points);
     mySetState?.call(() {
       pageState = LaserPanelState.joystick;
     });
@@ -3387,9 +3388,9 @@ class LaserPageController {
 
     final currentPoints = pointsFreeFromJson(pointsFreeToJson(points));
     final safePositionSnapshot = currentSafePosition;
-    final defaultLabelPrefix = "${controrotaiaModeValue} - ";
+    final defaultLabelPrefix = "$controrotaiaModeValue - ";
 
-    String? label = null;
+    String? label;
     while (label == null || label.trim() == "") {
       printLog(
           '[SAVE_POINTS] Apro dialog etichetta, default=$defaultLabelPrefix');
@@ -3474,7 +3475,7 @@ class LaserPageController {
     if (log.trim() != lastLogMessage.trim()) {
       lastLogMessage = log;
       mySetState?.call(() {
-        logString = log + "\n" + logString;
+        logString = "$log\n$logString";
       });
     }
   }
@@ -3768,10 +3769,10 @@ class LaserPageController {
           : "http://${settings.ipServer}/interpola";
       lastInterpolaUrl = interpolaUrl;
       print(">>>INTERPOLA_REQUEST<<< url=$interpolaUrl | headers={Content-Type: application/json}");
-      const _chunkSize = 800;
-      for (var _i = 0; _i < pointsToSend.length; _i += _chunkSize) {
-        final _end = (_i + _chunkSize < pointsToSend.length) ? _i + _chunkSize : pointsToSend.length;
-        print(">>>INTERPOLA_REQUEST<<< body[$_i-$_end] ${pointsToSend.substring(_i, _end)}");
+      const chunkSize0 = 800;
+      for (var i0 = 0; i0 < pointsToSend.length; i0 += chunkSize0) {
+        final end0 = (i0 + chunkSize0 < pointsToSend.length) ? i0 + chunkSize0 : pointsToSend.length;
+        print(">>>INTERPOLA_REQUEST<<< body[$i0-$end0] ${pointsToSend.substring(i0, end0)}");
       }
       final response = await http.post(Uri.parse(interpolaUrl),
           headers: {"Content-Type": "application/json"}, body: pointsToSend);
@@ -4234,7 +4235,7 @@ class LaserPageController {
 
     print("[getPoint] addCurrentPoint");
     Offset? dashboardPosition = dashboardGetPoint?.call();
-    print("[getPoint] dashboardPosition: ${dashboardPosition}");
+    print("[getPoint] dashboardPosition: $dashboardPosition");
 
     if (dashboardPosition != null) {
       //
@@ -4276,7 +4277,7 @@ class LaserPageController {
           "allontanamento_y": settings.scostamentoY,
           "allontanamento_z": settings.scostamentoZ,
           "assisted":
-              this.controllerMode == LaserControllerMode.movimentoAssistito
+              controllerMode == LaserControllerMode.movimentoAssistito
                   ? 1
                   : 0
         });

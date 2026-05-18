@@ -69,7 +69,7 @@ class _LaserLimiteFormData {
 
 class LaserSettingsPage extends StatefulWidget {
   final LaserPageController laserPageController;
-  const LaserSettingsPage({required this.laserPageController});
+  const LaserSettingsPage({super.key, required this.laserPageController});
 
   @override
   State<LaserSettingsPage> createState() => _LaserSettingsPageState();
@@ -668,8 +668,9 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
       widget.laserPageController.setRobotSettings(newSettings: currentSettings);
     } catch (e) {
       if (e is ResponseError) {
-        if (e.message.trim() != "")
+        if (e.message.trim() != "") {
           Messenger.showMessageGenericError(context, e.message, 2);
+        }
       }
     } finally {
       mySetState(() {
@@ -694,8 +695,9 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
       updateFields(settings: currentSettings);
     } catch (e) {
       if (e is ResponseError) {
-        if (e.message.trim() != "")
+        if (e.message.trim() != "") {
           Messenger.showMessageGenericError(context, e.message, 2);
+        }
       }
     } finally {
       mySetState(() {
@@ -782,8 +784,9 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
     } catch (e) {
       print(e.toString());
       if (e is ResponseError) {
-        if (e.message.trim() != "")
+        if (e.message.trim() != "") {
           Messenger.showMessageGenericError(context, e.message, 2);
+        }
       }
     } finally {
       mySetState(() {

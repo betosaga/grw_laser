@@ -11,12 +11,12 @@ class DeviceInfoManager {
   static bool isTablet = false;
 
   static Future<void> loadInfo() async {
-    final _packageInfo = await PackageInfo.fromPlatform();
-    appName = _packageInfo.appName;
-    packageName = _packageInfo.packageName;
-    version = _packageInfo.version;
-    buildNumber = _packageInfo.buildNumber;
-    appversion = version + "+" + buildNumber;
+    final packageInfo = await PackageInfo.fromPlatform();
+    appName = packageInfo.appName;
+    packageName = packageInfo.packageName;
+    version = packageInfo.version;
+    buildNumber = packageInfo.buildNumber;
+    appversion = "$version+$buildNumber";
     final deviceInfo = DeviceInfoPlugin();
     if (Platform.isAndroid) {
       final androidInfo = await deviceInfo.androidInfo;

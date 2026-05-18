@@ -5,7 +5,7 @@ class LaserRobotSettingRow extends StatelessWidget {
   final double elementsSpacing;
   final TextEditingController controller;
   const LaserRobotSettingRow(
-      {required this.title,
+      {super.key, required this.title,
       required this.elementsSpacing,
       required this.controller});
 
@@ -15,7 +15,7 @@ class LaserRobotSettingRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         children: [
-          Container(
+          SizedBox(
               width: 100,
               child: Text(
                 title,

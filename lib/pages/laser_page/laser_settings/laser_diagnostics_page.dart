@@ -392,7 +392,7 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
         final ty = vertices[k][1];
         final totalSteps = (tx - posX).abs().clamp(0, 1000) + (ty - posY).abs().clamp(0, 1000);
         _appendTestPuntiLog(
-          'Vertice ${k + 1}/$nVertici → ($tx, $ty)  Δ(${tx - posX}, ${ty - posY})  ~${totalSteps} passi',
+          'Vertice ${k + 1}/$nVertici → ($tx, $ty)  Δ(${tx - posX}, ${ty - posY})  ~$totalSteps passi',
         );
 
         final sent = await _moveSegment(posX, posY, tx, ty, intervalMs);

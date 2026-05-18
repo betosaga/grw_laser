@@ -747,20 +747,20 @@ class LaserRectangleWithCrossCursorState
     //
     //
     //
-    widget.controller.dashboardClear = this.clear;
-    widget.controller.dashboardSetDStart = this.setDStart;
+    widget.controller.dashboardClear = clear;
+    widget.controller.dashboardSetDStart = setDStart;
     widget.controller.dashboardSetHomeReferenceCenter =
-        this.setHomeReferenceAsGraphCenter;
+        setHomeReferenceAsGraphCenter;
     widget.controller.dashboardInitDStartWithoutMove =
-        this.initDStartWithoutMove;
-    widget.controller.dashboardGetPoint = this.getPoint;
+        initDStartWithoutMove;
+    widget.controller.dashboardGetPoint = getPoint;
     widget.controller.dashboardUpdateCursorFromExternalCoordinates =
-        this.updateCursorFromExternalCoordinates;
-    widget.controller.dashboardUpdateCursorPosition = this.updateCursorPosition;
-    widget.controller.dashboardSetPaused = this.setPaused;
-    widget.controller.dashboardRedrawPoints = this.redrawPoints;
+        updateCursorFromExternalCoordinates;
+    widget.controller.dashboardUpdateCursorPosition = updateCursorPosition;
+    widget.controller.dashboardSetPaused = setPaused;
+    widget.controller.dashboardRedrawPoints = redrawPoints;
     widget.controller.dashboardCalculatePointPosition =
-        this.calculateDashboardPositionFromWorldCoordinates;
+        calculateDashboardPositionFromWorldCoordinates;
     widget.controller.dashboardHasRobotReferenceFrame =
         () => _robotStartPositionX != null && _robotStartPositionZ != null;
 

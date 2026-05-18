@@ -15,7 +15,7 @@ class LaserRectangleCommands extends StatefulWidget {
   final Point posizioneRobot;
 
   LaserRectangleCommands(
-      {required this.controller,
+      {super.key, required this.controller,
       required this.canMoveRobot,
       required this.stopwatch,
       required this.posizioneRobot});

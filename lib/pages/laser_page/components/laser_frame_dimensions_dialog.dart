@@ -6,8 +6,8 @@ class LaserFrameDimensionsDialog extends StatelessWidget {
   final TextEditingController widthController;
   final TextEditingController heightController;
 
-  LaserFrameDimensionsDialog(
-      {required this.widthController, required this.heightController});
+  const LaserFrameDimensionsDialog(
+      {super.key, required this.widthController, required this.heightController});
 
   @override
   Widget build(BuildContext context) {

@@ -5,7 +5,7 @@ import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
 
 class LaserCaricamentoDati extends StatelessWidget {
   final LaserPageController controller;
-  const LaserCaricamentoDati({required this.controller});
+  const LaserCaricamentoDati({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {

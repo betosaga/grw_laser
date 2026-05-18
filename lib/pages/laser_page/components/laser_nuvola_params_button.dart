@@ -5,7 +5,7 @@ import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
 class LaserNuvolaParamsButton extends StatelessWidget {
   final LaserPageController controller;
 
-  const LaserNuvolaParamsButton({required this.controller});
+  const LaserNuvolaParamsButton({super.key, required this.controller});
 
   Future<void> _showDialog(BuildContext context) async {
     // Lavoriamo su copie temporanee per poter annullare

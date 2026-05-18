@@ -5,7 +5,7 @@ import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
 class LaserJog extends StatefulWidget {
   final double maxstepx;
   final LaserPageController controller;
-  LaserJog({required this.maxstepx, required this.controller});
+  const LaserJog({super.key, required this.maxstepx, required this.controller});
 
   @override
   _LaserJogState createState() => _LaserJogState();

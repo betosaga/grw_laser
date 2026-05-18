@@ -5,7 +5,7 @@ import 'package:unicons/unicons.dart';
 
 class LaserJoystick extends StatelessWidget {
   final LaserPageController controller;
-  LaserJoystick({required this.controller});
+  const LaserJoystick({super.key, required this.controller});
 
   String _stepLabel(double value) => value.toStringAsFixed(1);
 

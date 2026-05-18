@@ -4,7 +4,7 @@ import 'package:grw_laser/services/vibrator.dart';
 
 class LaserClosePageButton extends StatelessWidget {
   final LaserPageHubController controller;
-  LaserClosePageButton({required this.controller});
+  const LaserClosePageButton({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {

@@ -6,7 +6,7 @@ import 'package:grw_laser/services/vibrator.dart';
 
 class LaserPlayPauseButton extends StatelessWidget {
   final LaserPageController controller;
-  LaserPlayPauseButton({required this.controller});
+  const LaserPlayPauseButton({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {

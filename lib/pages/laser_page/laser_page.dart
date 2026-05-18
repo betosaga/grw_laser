@@ -10,7 +10,7 @@ import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
 
 class LaserPage extends StatefulWidget {
   final LaserPageController controller;
-  LaserPage({required this.controller});
+  const LaserPage({super.key, required this.controller});
 
   @override
   LaserState createState() => LaserState();

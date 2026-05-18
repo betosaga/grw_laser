@@ -5,7 +5,7 @@ import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
 class LaserTopInfoBar extends StatelessWidget {
   final LaserPageController controller;
 
-  const LaserTopInfoBar({
+  const LaserTopInfoBar({super.key, 
     required this.controller,
   });
 
@@ -22,18 +22,9 @@ class LaserTopInfoBar extends StatelessWidget {
                 style: TextStyle(color: Colors.white)),
             Spacer(),
             Text(
-                "Cordone " +
-                    controller.cordone.toString() +
-                    " (Start cordone: " +
-                    controller.cordoneiniziale.toString() +
-                    ", End cordone: " +
-                    controller.cordonefinale.toString() +
-                    ")" +
-                    " - MAX num cordoni: " +
-                    controller.numerocordonitotale.toString() +
-                    (controller.frameSet
+                "Cordone ${controller.cordone} (Start cordone: ${controller.cordoneiniziale}, End cordone: ${controller.cordonefinale}) - MAX num cordoni: ${controller.numerocordonitotale}${controller.frameSet
                         ? " - Frame (mm): ${controller.frameWidth} x ${controller.frameHeight}"
-                        : ""),
+                        : ""}",
                 style: TextStyle(color: Colors.white)),
             Spacer(),
           ],

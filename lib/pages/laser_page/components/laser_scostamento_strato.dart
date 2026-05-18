@@ -7,7 +7,7 @@ class LaserScostamentoStrato extends StatelessWidget {
   //
   //
   final LaserPageController controller;
-  const LaserScostamentoStrato({required this.controller});
+  const LaserScostamentoStrato({super.key, required this.controller});
 
   Widget _buildField({
     required String title,

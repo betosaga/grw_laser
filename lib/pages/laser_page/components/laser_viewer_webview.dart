@@ -15,8 +15,7 @@ class LaserViewerWebview extends StatefulWidget {
   final LaserPageController controller;
   final VoidCallback? onExpand;
 
-  const LaserViewerWebview({Key? key, required this.controller, this.onExpand})
-      : super(key: key);
+  const LaserViewerWebview({super.key, required this.controller, this.onExpand});
 
   @override
   State<LaserViewerWebview> createState() => _LaserViewerWebviewState();

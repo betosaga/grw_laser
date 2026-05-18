@@ -18,7 +18,7 @@ import 'package:grw_laser/services/color_service.dart';
 
 class LaserPageBody extends StatelessWidget {
   final LaserPageController controller;
-  const LaserPageBody({required this.controller});
+  const LaserPageBody({super.key, required this.controller});
 
   Widget _buildWeldingProgressBar() {
     //

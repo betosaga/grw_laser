@@ -8,8 +8,7 @@ class LaserOmnidirectionalJog extends StatefulWidget {
   final LaserPageController controller;
 
   const LaserOmnidirectionalJog(
-      {Key? key, required this.range, required this.controller})
-      : super(key: key);
+      {super.key, required this.range, required this.controller});
 
   @override
   _LaserOmnidirectionalJogState createState() =>

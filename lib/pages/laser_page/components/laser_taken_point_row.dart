@@ -4,7 +4,7 @@ import 'package:grw_laser/model/point.dart';
 class LaserTakenPointRow extends StatelessWidget {
   final String title;
   final Point point;
-  const LaserTakenPointRow({required this.title, required this.point});
+  const LaserTakenPointRow({super.key, required this.title, required this.point});
 
   @override
   Widget build(BuildContext context) {

@@ -20,7 +20,7 @@ class PackageInfoManager {
     packageName = packageInfo.packageName;
     version = packageInfo.version;
     buildNumber = packageInfo.buildNumber;
-    appversion = version + "+" + buildNumber;
+    appversion = "$version+$buildNumber";
 
     final deviceInfo = DeviceInfoPlugin();
     if (Platform.isIOS) {
