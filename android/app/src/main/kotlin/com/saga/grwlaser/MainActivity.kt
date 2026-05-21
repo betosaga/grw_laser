@@ -1,4 +1,4 @@
-package it.sagasrl.grw_laser
+package com.saga.grwlaser
 
 import io.flutter.embedding.android.FlutterActivity
 
