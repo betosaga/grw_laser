@@ -276,7 +276,7 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                     margin: EdgeInsets.only(left: 4.h, right: 4.h),
                     decoration: BoxDecoration(
                         border: Border.all(color: Color(0xFFcfd7dd)),
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(14.px),
                         color: Colors.white.withAlphaFromOpacity(alpha: 0.7)),
                     child: Column(children: <Widget>[
                       Container(
@@ -418,7 +418,7 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                           color:
                                               Color.fromARGB(255, 82, 142, 196),
                                           borderRadius:
-                                              BorderRadius.circular(10.0)),
+                                                BorderRadius.circular(14.px)),
                                       child: Container(
                                           width: 250.px,
                                           alignment: Alignment.center,
