@@ -39,6 +39,8 @@ import 'package:grw_laser/model/response/response_error.dart';
 //
 //
 class _SocketJsonExtraction {
+//
+//
   final List<String> messages;
   final String remainingBuffer;
 
@@ -2467,9 +2469,7 @@ class LaserPageController {
           "allontanamento_y": settings.scostamentoY,
           "allontanamento_z": settings.scostamentoZ,
           "assisted":
-              controllerMode == LaserControllerMode.movimentoAssistito
-                  ? 1
-                  : 0
+              controllerMode == LaserControllerMode.movimentoAssistito ? 1 : 0
         });
       }
     } else {
@@ -2482,9 +2482,7 @@ class LaserPageController {
         "allontanamento_y": settings.scostamentoY,
         "allontanamento_z": settings.scostamentoZ,
         "assisted":
-            controllerMode == LaserControllerMode.movimentoAssistito
-                ? 1
-                : 0,
+            controllerMode == LaserControllerMode.movimentoAssistito ? 1 : 0,
       });
     }
   }
@@ -2631,9 +2629,8 @@ class LaserPageController {
       //
       //
       //
-      final hasValidPointsCount = modalitaNuvola
-          ? weldPoints.length >= 4
-          : weldPoints.length >= 2;
+      final hasValidPointsCount =
+          modalitaNuvola ? weldPoints.length >= 4 : weldPoints.length >= 2;
       if (!hasValidPointsCount) {
         Messenger.showMessageGenericError(
             context,
@@ -3673,24 +3670,18 @@ class LaserPageController {
         }
         if (cordoneBase.length < 2) {
           Messenger.showMessageGenericError(
-              context,
-              "Base non definita: seleziona almeno 2 punti BASE",
-              3);
+              context, "Base non definita: seleziona almeno 2 punti BASE", 3);
           return;
         }
         if (cordoneLimite.length < 2) {
-          Messenger.showMessageGenericError(
-              context,
-              "Limite non definito: seleziona almeno 2 punti LIMITE",
-              3);
+          Messenger.showMessageGenericError(context,
+              "Limite non definito: seleziona almeno 2 punti LIMITE", 3);
           return;
         }
       } else {
         if (effectivePoints.length < 2) {
           Messenger.showMessageGenericError(
-              context,
-              "Seleziona almeno 2 punti prima di interpolare",
-              3);
+              context, "Seleziona almeno 2 punti prima di interpolare", 3);
           return;
         }
       }
@@ -3768,11 +3759,15 @@ class LaserPageController {
           ? "http://${settings.ipServer}/interpola_nuvola"
           : "http://${settings.ipServer}/interpola";
       lastInterpolaUrl = interpolaUrl;
-      print(">>>INTERPOLA_REQUEST<<< url=$interpolaUrl | headers={Content-Type: application/json}");
+      print(
+          ">>>INTERPOLA_REQUEST<<< url=$interpolaUrl | headers={Content-Type: application/json}");
       const chunkSize0 = 800;
       for (var i0 = 0; i0 < pointsToSend.length; i0 += chunkSize0) {
-        final end0 = (i0 + chunkSize0 < pointsToSend.length) ? i0 + chunkSize0 : pointsToSend.length;
-        print(">>>INTERPOLA_REQUEST<<< body[$i0-$end0] ${pointsToSend.substring(i0, end0)}");
+        final end0 = (i0 + chunkSize0 < pointsToSend.length)
+            ? i0 + chunkSize0
+            : pointsToSend.length;
+        print(
+            ">>>INTERPOLA_REQUEST<<< body[$i0-$end0] ${pointsToSend.substring(i0, end0)}");
       }
       final response = await http.post(Uri.parse(interpolaUrl),
           headers: {"Content-Type": "application/json"}, body: pointsToSend);
@@ -4277,9 +4272,7 @@ class LaserPageController {
           "allontanamento_y": settings.scostamentoY,
           "allontanamento_z": settings.scostamentoZ,
           "assisted":
-              controllerMode == LaserControllerMode.movimentoAssistito
-                  ? 1
-                  : 0
+              controllerMode == LaserControllerMode.movimentoAssistito ? 1 : 0
         });
 
         // Congela l'aggiornamento del cursore per 500ms per evitare salti
