@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:grw_laser/common_components/drawer.dart';
 import 'package:grw_laser/common_components/loading_spinner.dart';
 import 'package:grw_laser/configuration/app_colors.dart';
 import 'package:grw_laser/pages/laser_page/components/laser_choose_robot_button.dart';
@@ -37,6 +38,7 @@ class _LaserPageHubState extends State<LaserPageHub> {
 
     return Scaffold(
         resizeToAvoidBottomInset: false,
+        drawer: const AppDrawer(),
         appBar: AppBar(
           backgroundColor: AppColors.sagaBlue,
           title: LaserPageTitle(
