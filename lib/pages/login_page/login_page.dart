@@ -259,7 +259,7 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
           resizeToAvoidBottomInset: false,
           body: Stack(children: <Widget>[
             Image.asset(
-              'images/BACKGROUND-SAGA-REPORTS.jpg',
+              'images/grw-blank-icon.png',
               colorBlendMode: BlendMode.darken,
               fit: BoxFit.cover,
               width: double.infinity,
