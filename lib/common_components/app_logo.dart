@@ -9,6 +9,6 @@ class AppLogo extends StatelessWidget {
     return SizedBox(
         height: size,
         width: size,
-        child: Image.asset('images/reports-appbar.png'));
+        child: Image.asset('images/grw-blank-icon.png'));
   }
 }
