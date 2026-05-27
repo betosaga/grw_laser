@@ -8,7 +8,7 @@ import 'package:grw_laser/services/ui_builder.dart';
 class Messenger {
   static void showSnackBar(BuildContext? context,
       {required String textToShow}) {
-    if (context != null) {
+    if (context != null && context.mounted) {
       final snackBar = SnackBar(content: Text(textToShow));
       ScaffoldMessenger.of(context).showSnackBar(snackBar);
     }
@@ -16,7 +16,7 @@ class Messenger {
 
   static void showSnackBarError(BuildContext? context,
       {required String textToShow}) {
-    if (context != null) {
+    if (context != null && context.mounted) {
       final snackBar = SnackBar(
         content: Text(textToShow),
         backgroundColor: Colors.red,
@@ -27,7 +27,7 @@ class Messenger {
 
   static Future<bool?> askMessage(
       context, String title, String m, String atrue, String afalse) async {
-    // set up the buttons
+    if (!context.mounted) return null;
     Widget cancelButton = TextButton(
       child: Text(afalse, style: TextStyle(color: Colors.red)),
       onPressed: () => Pager.pop(context, false),
@@ -59,7 +59,7 @@ class Messenger {
 
   static Future<bool?> infoDialog(
       context, String title, String m, String atrue) async {
-    // set up the buttons
+    if (!context.mounted) return null;
 
     Widget continueButton = TextButton(
       child: Text(atrue, style: TextStyle(color: Colors.black)),
@@ -90,6 +90,7 @@ class Messenger {
       required String title,
       required String body,
       required Function(Flushbar<dynamic>)? onTap}) async {
+    if (!context.mounted) return;
     final f = Flushbar(
       flushbarPosition: FlushbarPosition.TOP,
       flushbarStyle: FlushbarStyle.FLOATING,
@@ -122,7 +123,7 @@ class Messenger {
 
   static Future<bool?> askMessageAlert(
       context, String title, String m, String atrue, String afalse) async {
-    // set up the buttons
+    if (!context.mounted) return null;
     Widget cancelButton = TextButton(
       style: TextButton.styleFrom(
         foregroundColor: Colors.white,
@@ -164,7 +165,7 @@ class Messenger {
 
   static Future<bool?> askTorchUnmountedConfirm(
       context, String title, String m, String atrue, String afalse) async {
-    // set up the buttons
+    if (!context.mounted) return null;
     Widget cancelButton = TextButton(
       style: TextButton.styleFrom(
         foregroundColor: Colors.white,
@@ -234,6 +235,7 @@ class Messenger {
       String currentCordone,
       int cordoneIniziale,
       int cordoneFinale) async {
+    if (!context.mounted) return null;
     final numeroCordoneController = TextEditingController(text: currentCordone);
     // set up the buttons
     Widget cancelButton = TextButton(
@@ -354,7 +356,7 @@ class Messenger {
 
   static Future<bool?> askMessageAlert2(
       context, String title, String m, String atrue, String afalse) async {
-    // set up the buttons
+    if (!context.mounted) return null;
     Widget cancelButton = TextButton(
       style: TextButton.styleFrom(
         foregroundColor: Colors.white,
@@ -401,7 +403,7 @@ class Messenger {
 
   static Future<bool?> askMessageTaratura(
       context, String title, String m, String atrue, String afalse) async {
-    // set up the buttons
+    if (!context.mounted) return null;
     Widget taraturaButton = SizedBox(
         width: 100,
         child: TextButton(
@@ -463,7 +465,7 @@ class Messenger {
 
   static Future<bool?> showDefaultConfirm(
       context, String title, String m, String atrue, String afalse) async {
-    // set up the buttons
+    if (!context.mounted) return null;
     Widget cancelButton = SizedBox(
         width: 100,
         child: TextButton(
@@ -536,7 +538,7 @@ class Messenger {
 
   static Future<bool?> askMessageConf(
       context, String title, String m, String atrue, String afalse) async {
-    // set up the buttons
+    if (!context.mounted) return null;
     Widget cancelButton = SizedBox(
         width: 100,
         child: TextButton(
@@ -599,7 +601,7 @@ class Messenger {
 
   static Future<bool?> showInfo(
       context, String title, String m, bool error) async {
-    // set up the buttons
+    if (!context.mounted) return null;
     Widget cancelButton = TextButton(
       child: Text("OK"),
       onPressed: () => Pager.pop(context, false),
@@ -643,6 +645,7 @@ class Messenger {
 
   static Future<bool?> showInfo2(
       context, String title, String m, double value) async {
+    if (!context.mounted) return null;
     // set up the buttons
     Widget cancelButton = TextButton(
       child: Text("OK"),
@@ -702,6 +705,7 @@ class Messenger {
   }
 
   static void showMessageGeneric(context, messaggio, d) {
+    if (!context.mounted) return;
     final f = Flushbar(
       flushbarPosition: FlushbarPosition.TOP,
       flushbarStyle: FlushbarStyle.FLOATING,
@@ -731,6 +735,7 @@ class Messenger {
   }
 
   static void showMessageGenericError(context, messaggio, d) {
+    if (!context.mounted) return;
     final f = Flushbar(
       flushbarPosition: FlushbarPosition.TOP,
       flushbarStyle: FlushbarStyle.FLOATING,
@@ -777,3 +782,4 @@ class Messenger {
     f.show(context);
   }
 }
+-----
