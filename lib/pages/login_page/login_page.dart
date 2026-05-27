@@ -279,6 +279,7 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                         borderRadius: BorderRadius.circular(14.px),
                         color: Colors.white.withAlphaFromOpacity(alpha: 0.7)),
                     child: Column(children: <Widget>[
+                      SizedBox(height: 32,),
                       Container(
                         margin: EdgeInsets.symmetric(horizontal: 5.h),
                         child: TextField(
@@ -486,7 +487,7 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                       Divider(height: 20, color: Colors.transparent),
                       caricando ? LoadingSpinner() : Container(),
                       SizedBox(
-                        height: 20,
+                        height: 32,
                       )
                     ])),
               ],
