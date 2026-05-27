@@ -11,7 +11,7 @@ class LaserClosePageButton extends StatelessWidget {
     return Listener(
       onPointerDown: (_) => Vibrator.shortVibration(),
       child: IconButton(
-        icon: Icon(Icons.logout),
+        icon: Icon(Icons.exit_to_app),
         onPressed: () => controller.closePage(context: context),
         color: Colors.white,
       ),
