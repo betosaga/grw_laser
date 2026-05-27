@@ -4,6 +4,7 @@ import 'package:grw_laser/pages/login_page/login_page.dart';
 
 class Pager {
   static void setFirstPageLogin({required BuildContext context}) {
+    if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 400),
@@ -20,6 +21,7 @@ class Pager {
   }
 
   static void setFirstPageHome({required BuildContext context}) {
+    if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 400),
@@ -36,6 +38,7 @@ class Pager {
   }
 
   static void setFirstPageHomeImmediate({required BuildContext context}) {
+    if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       PageRouteBuilder(
         transitionDuration: Duration.zero,
@@ -50,6 +53,7 @@ class Pager {
 
   static void setFirstPageNamed(
       {required BuildContext context, required String pageName}) {
+    if (!context.mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil(pageName, (route) {
       return false;
     });
@@ -57,6 +61,7 @@ class Pager {
 
   static void setFirstPage(
       {required BuildContext context, required Widget page}) {
+    if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(
       builder: (context) {
         return page;
@@ -70,6 +75,7 @@ class Pager {
       {required BuildContext context,
       required Widget page,
       required String afterNamed}) {
+    if (!context.mounted) return;
     Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (BuildContext context) => page),
@@ -80,6 +86,7 @@ class Pager {
       {required BuildContext context,
       required Widget page,
       required bool Function(Route<dynamic>) predicate}) {
+    if (!context.mounted) return;
     Navigator.pushAndRemoveUntil(context,
         MaterialPageRoute(builder: (BuildContext context) => page), predicate);
   }
@@ -88,6 +95,7 @@ class Pager {
       {required BuildContext context,
       required String pageNamed,
       required Object? arguments}) {
+    if (!context.mounted) return;
     Navigator.pushNamedAndRemoveUntil(context, pageNamed, (route) {
       return route.isFirst;
     }, arguments: arguments);
@@ -97,6 +105,7 @@ class Pager {
       {required BuildContext context,
       required String pageNamed,
       required String afterNamed}) {
+    if (!context.mounted) return;
     Navigator.pushNamedAndRemoveUntil(
         context, pageNamed, ModalRoute.withName(afterNamed));
   }
@@ -107,6 +116,7 @@ class Pager {
       bool modal = false,
       bool popBefore = false,
       Function(BuildContext)? beforeBuild}) {
+    if (!context.mounted) return Future.value(null);
     if (popBefore) {
       pop(context);
     }
@@ -126,6 +136,7 @@ class Pager {
       bool modal = false,
       bool popBefore = false,
       Object? arguments}) {
+    if (!context.mounted) return Future.value(null);
     if (popBefore) {
       pop(context);
     }
@@ -133,10 +144,12 @@ class Pager {
   }
 
   static void pop<T extends Object?>(BuildContext context, [T? result]) {
+    if (!context.mounted) return;
     Navigator.of(context).pop<T?>(result);
   }
 
   static void goToFirstPage(BuildContext context) {
+    if (!context.mounted) return;
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 }
