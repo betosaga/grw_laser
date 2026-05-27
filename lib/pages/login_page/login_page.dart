@@ -72,7 +72,7 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         "d": await DeviceIdService.getDeviceID() ?? "",
         "pkg": DeviceInfoManager.packageName,
         "plf": Platform.isIOS ? "iOS" : "android"
-      }, verbose: true);
+      });
 
       // salvo l'utente
       UserSessionNest.buildUtenteFromData(data: response.body);
