@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:grw_laser/common_components/gradient_app_bar_background.dart';
 import 'package:grw_laser/configuration/app_colors.dart';
 import 'package:grw_laser/model/point.dart';
 import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
@@ -223,7 +224,8 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
             postSendDelay: Duration.zero,
           );
           _stressSent++;
-          _appendStressLog('[DESTRA] #${i + 1}/$stepsPerLeg TX: ${msg.toString()}');
+          _appendStressLog(
+              '[DESTRA] #${i + 1}/$stepsPerLeg TX: ${msg.toString()}');
         } catch (e) {
           _stressErrors++;
           _appendStressLog('ERRORE TX (DESTRA) #${i + 1}: $e');
@@ -261,7 +263,8 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
             postSendDelay: Duration.zero,
           );
           _stressSent++;
-          _appendStressLog('[SINISTRA] #${i + 1}/$stepsPerLeg TX: ${msg.toString()}');
+          _appendStressLog(
+              '[SINISTRA] #${i + 1}/$stepsPerLeg TX: ${msg.toString()}');
         } catch (e) {
           _stressErrors++;
           _appendStressLog('ERRORE TX (SINISTRA) #${i + 1}: $e');
@@ -390,7 +393,8 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
       for (int k = 0; k < nVertici && _testPuntiRunning; k++) {
         final tx = vertices[k][0];
         final ty = vertices[k][1];
-        final totalSteps = (tx - posX).abs().clamp(0, 1000) + (ty - posY).abs().clamp(0, 1000);
+        final totalSteps =
+            (tx - posX).abs().clamp(0, 1000) + (ty - posY).abs().clamp(0, 1000);
         _appendTestPuntiLog(
           'Vertice ${k + 1}/$nVertici → ($tx, $ty)  Δ(${tx - posX}, ${ty - posY})  ~$totalSteps passi',
         );
@@ -430,9 +434,12 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
             <String, dynamic>{
               'f': 'SETPOINT',
               'point': testPoint.toJson(),
-              'allontanamento_x': widget.laserPageController.settings.scostamentoX,
-              'allontanamento_y': widget.laserPageController.settings.scostamentoY,
-              'allontanamento_z': widget.laserPageController.settings.scostamentoZ,
+              'allontanamento_x':
+                  widget.laserPageController.settings.scostamentoX,
+              'allontanamento_y':
+                  widget.laserPageController.settings.scostamentoY,
+              'allontanamento_z':
+                  widget.laserPageController.settings.scostamentoZ,
               'assisted': 0,
             },
             postSendDelay: Duration.zero,
@@ -444,7 +451,8 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
             ' z=${rp.z.toStringAsFixed(2)}]',
           );
         } catch (e) {
-          _appendTestPuntiLog('ERRORE SETPOINT punto #$_testPuntiPointsTaken: $e');
+          _appendTestPuntiLog(
+              'ERRORE SETPOINT punto #$_testPuntiPointsTaken: $e');
         }
 
         if (_testPuntiRunning) {
@@ -718,15 +726,13 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
                 const SizedBox(width: 8),
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _testPuntiRunning
-                        ? Colors.orange
-                        : AppColors.sagaBlue,
+                    backgroundColor:
+                        _testPuntiRunning ? Colors.orange : AppColors.sagaBlue,
                     foregroundColor: Colors.white,
                   ),
                   onPressed:
                       _testPuntiRunning ? _stopTestPunti : _startTestPunti,
-                  icon: Icon(
-                      _testPuntiRunning ? Icons.stop : Icons.play_arrow),
+                  icon: Icon(_testPuntiRunning ? Icons.stop : Icons.play_arrow),
                   label: Text(_testPuntiRunning ? 'STOP' : 'START'),
                 ),
                 const SizedBox(width: 8),
@@ -768,7 +774,9 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
         title: Text(
           'Diagnostica Robot - ${widget.laserPageController.settings.serialeRobot}',
         ),
-        backgroundColor: AppColors.sagaBlue,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        flexibleSpace: const GradientAppBarBackground(),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),

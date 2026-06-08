@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:grw_laser/common_components/drawer.dart';
+import 'package:grw_laser/common_components/gradient_app_bar_background.dart';
 import 'package:grw_laser/common_components/loading_spinner.dart';
 import 'package:grw_laser/configuration/app_colors.dart';
 import 'package:grw_laser/pages/laser_page/components/laser_choose_robot_button.dart';
@@ -40,7 +41,9 @@ class _LaserPageHubState extends State<LaserPageHub> {
         resizeToAvoidBottomInset: false,
         drawer: const AppDrawer(),
         appBar: AppBar(
-          backgroundColor: AppColors.sagaBlue,
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          flexibleSpace: const GradientAppBarBackground(),
           title: LaserPageTitle(
             controller: controller,
           ),

@@ -11,20 +11,26 @@ class LaserChooseRobotButton extends StatelessWidget {
     return Listener(
       onPointerDown: (_) => Vibrator.shortVibration(),
       child: TextButton(
-        onPressed: controller.isLoadingRobots
-            ? () {}
-            : controller.selectRobotPressed,
-        child: controller.isLoadingRobots
-            ? SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
+          onPressed: controller.isLoadingRobots
+              ? () {}
+              : controller.selectRobotPressed,
+          style: TextButton.styleFrom(
+            minimumSize: const Size(56, 56),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: controller.isLoadingRobots
+              ? SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                  ))
+              : Icon(
+                  Icons.add,
                   color: Colors.white,
-                ))
-            : Icon(
-                Icons.add,
-                color: Colors.white,
-              )),
+                  size: 36,
+                )),
     );
   }
 }

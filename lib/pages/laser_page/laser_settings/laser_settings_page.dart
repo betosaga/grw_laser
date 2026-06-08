@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:grw_laser/common_components/gradient_app_bar_background.dart';
 import 'package:grw_laser/common_components/loading_spinner.dart';
 import 'package:grw_laser/configuration/app_colors.dart';
 import 'package:grw_laser/configuration/constants.dart';
@@ -318,7 +319,9 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
                         color: Colors.white, fontWeight: FontWeight.bold),
                   )))
         ],
-        backgroundColor: AppColors.sagaBlue,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        flexibleSpace: const GradientAppBarBackground(),
         title: Text(
           "IMPOSTAZIONI ROBOT LASER - ${widget.laserPageController.settings.serialeRobot}",
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:grw_laser/configuration/app_colors.dart';
+import 'package:grw_laser/common_components/gradient_app_bar_background.dart';
 import 'package:grw_laser/model/laser_points_package.dart';
 import 'package:grw_laser/model/response/response_error.dart';
 import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
@@ -35,23 +35,25 @@ class _LaserPointsHistoryPageState extends State<LaserPointsHistoryPage> {
         appBar: AppBar(
           automaticallyImplyLeading: false,
           leading: Listener(
-            onPointerDown: (_) => Vibrator.shortVibration(),
-            child: TextButton(
-            child: Icon(
-              Icons.arrow_back_ios_new_sharp,
-              color: Colors.white,
-            ),
-            onPressed: () => Pager.pop(context),
-          )),
-          backgroundColor: AppColors.sagaBlue,
+              onPointerDown: (_) => Vibrator.shortVibration(),
+              child: TextButton(
+                child: Icon(
+                  Icons.arrow_back_ios_new_sharp,
+                  color: Colors.white,
+                ),
+                onPressed: () => Pager.pop(context),
+              )),
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          flexibleSpace: const GradientAppBarBackground(),
           title: Text("STORICO PUNTI", style: TextStyle(color: Colors.white)),
           actions: [
             Listener(
-              onPointerDown: (_) => Vibrator.shortVibration(),
-              child: IconButton(
-              icon: Icon(Icons.refresh, color: Colors.white),
-              onPressed: fetchHistory,
-            )),
+                onPointerDown: (_) => Vibrator.shortVibration(),
+                child: IconButton(
+                  icon: Icon(Icons.refresh, color: Colors.white),
+                  onPressed: fetchHistory,
+                )),
           ],
         ),
         body: isLoading
@@ -88,13 +90,15 @@ class _LaserPointsHistoryPageState extends State<LaserPointsHistoryPage> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Listener(
-                                  onPointerDown: (_) => Vibrator.longVibration(),
+                                  onPointerDown: (_) =>
+                                      Vibrator.longVibration(),
                                   child: IconButton(
-                                  onPressed: () => deletePointsAt(index: index),
-                                  icon: Icon(
-                                    Icons.delete,
-                                    color: Colors.red,
-                                  ))),
+                                      onPressed: () =>
+                                          deletePointsAt(index: index),
+                                      icon: Icon(
+                                        Icons.delete,
+                                        color: Colors.red,
+                                      ))),
                               SizedBox(
                                 width: 20,
                               ),

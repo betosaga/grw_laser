@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:grw_laser/configuration/app_colors.dart';
+import 'package:grw_laser/common_components/gradient_app_bar_background.dart';
 import 'package:grw_laser/services/pager.dart';
 import 'package:grw_laser/services/vibrator.dart';
 
@@ -18,15 +18,17 @@ class LaserSimulationPage extends StatelessWidget {
         appBar: AppBar(
           automaticallyImplyLeading: false,
           leading: Listener(
-            onPointerDown: (_) => Vibrator.shortVibration(),
-            child: IconButton(
-            icon: Icon(
-              Icons.arrow_back_ios_new_sharp,
-              color: Colors.white,
-            ),
-            onPressed: () => Pager.pop(context),
-          )),
-          backgroundColor: AppColors.sagaBlue,
+              onPointerDown: (_) => Vibrator.shortVibration(),
+              child: IconButton(
+                icon: Icon(
+                  Icons.arrow_back_ios_new_sharp,
+                  color: Colors.white,
+                ),
+                onPressed: () => Pager.pop(context),
+              )),
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          flexibleSpace: const GradientAppBarBackground(),
           title: Text(
             "SIMULAZIONE",
             style: TextStyle(color: Colors.white),
