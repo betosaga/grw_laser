@@ -6,6 +6,8 @@ import 'package:grw_laser/services/ui_builder.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 class GrwLaserApp extends StatelessWidget {
+  //
+  //
   const GrwLaserApp({super.key});
 
   @override
