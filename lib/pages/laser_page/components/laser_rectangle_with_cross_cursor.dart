@@ -490,13 +490,10 @@ class LaserRectangleWithCrossCursorState
 
     if (!_autoPanDisabled) {
       // Regola UX richiesta: il primo punto deve comparire al centro e restarci.
-      // Dal secondo punto in poi il grafico torna ad adattarsi all'insieme.
       if (validPoints.length == 1) {
         _viewScale = 1.0;
         _centerGraphOnLogicalPoint(validPoints.first.dashboardPosition!);
         _position = validPoints.first.dashboardPosition!;
-      } else if (validPoints.length > 1) {
-        _fitAll();
       }
     } else if (validPoints.isNotEmpty) {
       // Aggiorna solo la posizione del cursore senza spostare la vista.
