@@ -92,16 +92,6 @@ class LaserPageHubController {
   //
 
   Future<void> selectRobotPressed() async {
-    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-    // SELECT ROBOT PRESSED
-
-    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
     if (context == null) return;
     await fetchRobotList();
     final LaserRobotSettings? selectedSettings =
@@ -113,32 +103,34 @@ class LaserPageHubController {
       },
     );
 
-    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
     if (selectedSettings != null) {
-      // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-      // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
       print("SETTINGS SELEZIONATE");
-      bool found = false;
-      for (int i = 0; i < laserPages.length; i++) {
-        if (laserPages[i].controller.settings.serialeRobot.trim() ==
-            selectedSettings.serialeRobot.trim()) {
-          found = true;
-          break;
-        }
+      final selectedRobotSerial = selectedSettings.serialeRobot.trim();
+      final selectedRobotDetail =
+          await fetchRobotDetail(serialeRobot: selectedRobotSerial);
+      if (selectedRobotDetail == null) {
+        return;
       }
-      if (found) {
+
+      final existingPageIndex = laserPages.indexWhere((page) =>
+          page.controller.settings.serialeRobot.trim() == selectedRobotSerial);
+      if (existingPageIndex >= 0) {
+        await laserPages[existingPageIndex].controller
+            .setRobotSettings(newSettings: selectedRobotDetail);
+        storeSettingsListToDisk();
+        mySetState?.call(() {});
+        if (pageController.hasClients) {
+          pageController.animateToPage(existingPageIndex,
+              duration: Duration(milliseconds: 500), curve: Curves.easeInOut);
+        }
         return;
       }
 
       String? tipoControrotaia;
-      if (selectedSettings.tipoControrotaia.trim().isNotEmpty &&
-          selectedSettings.tipoControrotaia.trim() != '0') {
+      if (selectedRobotDetail.tipoControrotaia.trim().isNotEmpty &&
+          selectedRobotDetail.tipoControrotaia.trim() != '0') {
         tipoControrotaia =
-            _normalizeTipoControrotaia(selectedSettings.tipoControrotaia);
+            _normalizeTipoControrotaia(selectedRobotDetail.tipoControrotaia);
       } else {
         tipoControrotaia = await _askTipoControrotaia();
       }
@@ -148,7 +140,7 @@ class LaserPageHubController {
 
       final newLaserController = LaserPageController(
           hubController: this,
-          settings: selectedSettings,
+          settings: selectedRobotDetail,
           tipoControrotaia: tipoControrotaia);
       final newLaserPage = LaserPage(controller: newLaserController);
 
@@ -163,6 +155,25 @@ class LaserPageHubController {
     } else {
       print("OPERAZIONE ANNULLATA");
     }
+  }
+
+  Future<LaserRobotSettings?> fetchRobotDetail(
+      {required String serialeRobot}) async {
+    try {
+      final response = await Api.request({
+        "f": "getRobotLaserDetail",
+        "seriale_robot": serialeRobot,
+      }, verbose: false);
+      return robotLaserSettingsFromJson(response.body);
+    } catch (e) {
+      print(e.toString());
+      if (e is ResponseError) {
+        if (e.message.trim() != "" && context != null) {
+          Messenger.showMessageGenericError(context, e.message, 2);
+        }
+      }
+    }
+    return null;
   }
 
   //

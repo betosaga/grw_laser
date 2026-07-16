@@ -10,6 +10,7 @@ import 'package:grw_laser/pages/laser_page/components/laser_robot_position_banne
 import 'package:grw_laser/pages/laser_page/laser_settings/laser_diagnostics_page.dart';
 import 'package:grw_laser/pages/laser_page/laser_settings/components/laser_robot_compact_field.dart';
 import 'package:grw_laser/pages/laser_page/laser_settings/components/laser_robot_setting_row.dart';
+import 'package:grw_laser/pages/laser_page/laser_settings/laser_robot_parametri_page.dart';
 import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_limite.dart';
 import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_settings.dart';
 import 'package:grw_laser/services/api.dart';
@@ -260,6 +261,15 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
     return text.trim().replaceAll(',', '.');
   }
 
+  void _openAllParametersPage() {
+    Pager.push(
+      context: context,
+      page: LaserRobotParametriPage(
+        laserPageController: widget.laserPageController,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final selectedTipoIndexes = _selectedTipoRowIndexes();
@@ -414,6 +424,14 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
                             ],
                           ),
                         ],
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: _openAllParametersPage,
+                        icon: const Icon(Icons.view_list),
+                        label: const Text('VEDI TUTTI'),
                       ),
                     ),
                     const SizedBox(height: 16),

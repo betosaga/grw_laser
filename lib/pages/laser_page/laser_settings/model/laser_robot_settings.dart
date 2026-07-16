@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_limite.dart';
+import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_parametro.dart';
 
 LaserRobotSettings robotLaserSettingsFromJson(String str) =>
     LaserRobotSettings.fromJson(json.decode(str));
@@ -40,6 +41,7 @@ class LaserRobotSettings {
   final double stepY;
   final String tipoControrotaia;
   final List<LaserRobotLimite> limiti;
+  final List<LaserRobotParametro> parametri;
 
   LaserRobotSettings(
       {required this.serialeRobot,
@@ -63,7 +65,8 @@ class LaserRobotSettings {
       this.stepRight = 0,
       this.stepY = 0,
       this.tipoControrotaia = '0',
-      this.limiti = const []});
+      this.limiti = const [],
+      this.parametri = const []});
 
   static String stringOrEmpty(dynamic value) {
     if (value == null) return '';
@@ -102,6 +105,15 @@ class LaserRobotSettings {
       parsedLimiti = rawLimiti
           .whereType<Map>()
           .map((e) => LaserRobotLimite.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+
+    final rawParametri = json['parametri'];
+    List<LaserRobotParametro> parsedParametri = [];
+    if (rawParametri is List) {
+      parsedParametri = rawParametri
+          .whereType<Map>()
+          .map((e) => LaserRobotParametro.fromJson(Map<String, dynamic>.from(e)))
           .toList();
     }
 
@@ -148,6 +160,7 @@ class LaserRobotSettings {
       stepY: first.stepY,
       tipoControrotaia: first.tipoControrotaia,
       limiti: parsedLimiti,
+      parametri: parsedParametri,
     );
   }
 
@@ -173,6 +186,7 @@ class LaserRobotSettings {
         "step_right": stepRight,
         "step_y": stepY,
         "tipo_controrotaia": tipoControrotaia,
-        "limiti": List<dynamic>.from(limiti.map((x) => x.toJson()))
+        "limiti": List<dynamic>.from(limiti.map((x) => x.toJson())),
+        "parametri": List<dynamic>.from(parametri.map((x) => x.toJson())),
       };
 }

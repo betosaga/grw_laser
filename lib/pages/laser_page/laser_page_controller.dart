@@ -1083,6 +1083,18 @@ class LaserPageController {
     }
   }
 
+  Map<String, dynamic> _robotParametriPayload() {
+    final payload = <String, dynamic>{};
+    for (final parametro in settings.parametri) {
+      final key = parametro.parametro.trim();
+      if (key.isEmpty || payload.containsKey(key)) {
+        continue;
+      }
+      payload[key] = parametro.valore;
+    }
+    return payload;
+  }
+
   void setRobotCanMove(bool value) {
     if (canMoveRobot == value) return;
 
@@ -2747,6 +2759,7 @@ class LaserPageController {
         "alternata": alternata,
         "safeposition": safePositionDecoded,
         "modalita_interpolazione": modalitaNuvola ? "nuvola" : "poligono",
+        ..._robotParametriPayload(),
         if (modalitaNuvola) ...{
           "use_nuvola": true,
           "quota_tassativa": true,
@@ -3196,7 +3209,10 @@ class LaserPageController {
       stepRight: newSettings.stepRight,
       stepY: newSettings.stepY,
       tipoControrotaia: nextTipo,
-      limiti: newSettings.limiti,
+      limiti: newSettings.limiti.isNotEmpty ? newSettings.limiti : settings.limiti,
+      parametri: newSettings.parametri.isNotEmpty
+          ? newSettings.parametri
+          : settings.parametri,
     );
     //
     //
@@ -3231,6 +3247,8 @@ class LaserPageController {
       await sendMessageToRobot(
           {"f": "SETMODE", "tipo_controrotaia": controrotaiaModeValue});
     }
+
+    hubController.storeSettingsListToDisk();
   }
 
   /// Cambia il tipo controrotaia a runtime e invia SETMODE al robot.
@@ -3736,6 +3754,7 @@ class LaserPageController {
             minLengthCordoniController.text, defaultMinLengthCordoni),
         "alternata": alternata,
         "modalita_interpolazione": modalitaNuvola ? "nuvola" : "poligono",
+        ..._robotParametriPayload(),
         if (modalitaNuvola) ...{
           "use_nuvola": true,
           "quota_tassativa": true,

@@ -762,9 +762,7 @@ class Messenger {
                   TextStyle(color: Colors.red[700], fontSize: UIBuilder.fontm),
             ),
           ),
-          onTap: () async {
-            Pager.pop(context);
-          }),
+          onTap: () => Pager.pop(context)),
       showProgressIndicator: true,
       progressIndicatorBackgroundColor: Colors.red,
       titleText: Text(
