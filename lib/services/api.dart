@@ -1,4 +1,3 @@
-
 import 'dart:developer' as dev;
 import 'dart:io';
 import 'package:http/http.dart' as http;
@@ -43,10 +42,16 @@ class Api {
     if (UserSessionNest.isLogged) {
       headers["Authorization"] = "Token ${UserSessionNest.utente!.userToken}";
     }
+
+    //
     //
     //
 
     try {
+      //
+      //
+      //
+
       final response =
           await http.post(URLs.apiurl, headers: headers, body: dict);
       if (verbose || verboseUnlocked) {
@@ -59,6 +64,7 @@ class Api {
       //
       //
       //
+
       if (!response.isSuccess) {
         try {
           final responseError = responseErrorFromJson(response.body);

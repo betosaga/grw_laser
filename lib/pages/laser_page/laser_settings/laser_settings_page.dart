@@ -290,6 +290,22 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
           Listener(
               onPointerDown: (_) => Vibrator.shortVibration(),
               child: TextButton.icon(
+                onPressed: _openAllParametersPage,
+                icon: const Icon(
+                  Icons.view_list,
+                  color: Colors.white,
+                ),
+                label: const Text(
+                  'TUTTI I PARAMETRI',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              )),
+          Listener(
+              onPointerDown: (_) => Vibrator.shortVibration(),
+              child: TextButton.icon(
                 onPressed: () {
                   Pager.push(
                     context: context,
@@ -424,14 +440,6 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
                             ],
                           ),
                         ],
-                      ),
-                    ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(
-                        onPressed: _openAllParametersPage,
-                        icon: const Icon(Icons.view_list),
-                        label: const Text('VEDI TUTTI'),
                       ),
                     ),
                     const SizedBox(height: 16),
