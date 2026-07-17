@@ -13,6 +13,16 @@ import 'package:grw_laser/services/messenger.dart';
 import 'package:grw_laser/services/pager.dart';
 import 'package:grw_laser/services/vibrator.dart';
 
+class _ParametroDropdownOption {
+  final String value;
+  final String label;
+
+  const _ParametroDropdownOption({
+    required this.value,
+    required this.label,
+  });
+}
+
 class LaserRobotParametriPage extends StatefulWidget {
   final LaserPageController laserPageController;
 
@@ -28,7 +38,9 @@ class LaserRobotParametriPage extends StatefulWidget {
 
 class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
   final Map<String, TextEditingController> _controllers = {};
+  final Map<String, ExpansibleController> _sectionControllers = {};
   List<LaserRobotParametro> _parametri = [];
+  String? _expandedSection;
   bool isLoading = false;
 
   @override
@@ -48,7 +60,37 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
       controller.dispose();
     }
     _controllers.clear();
+    for (final controller in _sectionControllers.values) {
+      controller.dispose();
+    }
+    _sectionControllers.clear();
     super.dispose();
+  }
+
+  ExpansibleController _sectionController(String section) {
+    return _sectionControllers.putIfAbsent(
+      section,
+      ExpansibleController.new,
+    );
+  }
+
+  void _onSectionExpansionChanged(String section, bool isExpanded) {
+    if (isExpanded) {
+      final previouslyExpanded = _expandedSection;
+      if (_expandedSection != section) {
+        setState(() {
+          _expandedSection = section;
+        });
+      }
+
+      if (previouslyExpanded != null && previouslyExpanded != section) {
+        _sectionControllers[previouslyExpanded]?.collapse();
+      }
+    } else if (_expandedSection == section) {
+      setState(() {
+        _expandedSection = null;
+      });
+    }
   }
 
   void _syncFromSettings(LaserRobotSettings settings) {
@@ -141,6 +183,69 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
     return const {'json', 'array', 'object', 'lista'}.contains(normalized);
   }
 
+  List<_ParametroDropdownOption> _dropdownOptions(dynamic allowed) {
+    List<dynamic>? rawOptions;
+
+    if (allowed is List) {
+      rawOptions = allowed;
+    } else if (allowed is Map) {
+      for (final key in ['valori', 'values', 'opzioni', 'options']) {
+        final nested = allowed[key];
+        if (nested is List) {
+          rawOptions = nested;
+          break;
+        }
+      }
+    }
+
+    if (rawOptions == null || rawOptions.isEmpty) {
+      return const [];
+    }
+
+    final options = <_ParametroDropdownOption>[];
+    final values = <String>{};
+
+    for (final option in rawOptions) {
+      dynamic optionValue = option;
+      dynamic optionLabel;
+
+      if (option is Map) {
+        if (option.containsKey('valore')) {
+          optionValue = option['valore'];
+        } else if (option.containsKey('value')) {
+          optionValue = option['value'];
+        }
+
+        for (final key in [
+          'etichetta',
+          'label',
+          'nome',
+          'name',
+          'testo',
+          'text'
+        ]) {
+          if (option.containsKey(key)) {
+            optionLabel = option[key];
+            break;
+          }
+        }
+      }
+
+      optionLabel ??= optionValue;
+      final value = _displayValue(optionValue);
+      if (values.add(value)) {
+        options.add(
+          _ParametroDropdownOption(
+            value: value,
+            label: _displayValue(optionLabel),
+          ),
+        );
+      }
+    }
+
+    return options;
+  }
+
   dynamic _parseValueForParametro(
       LaserRobotParametro parametro, String rawValue) {
     final tipo = parametro.tipo.trim().toLowerCase();
@@ -154,14 +259,8 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
         throw FormatException(
             'Il parametro ${parametro.parametro} non puo essere nullo');
       }
-      if (const {
-        'int',
-        'integer',
-        'intero',
-        'tinyint',
-        'smallint',
-        'bigint'
-      }.contains(tipo)) {
+      if (const {'int', 'integer', 'intero', 'tinyint', 'smallint', 'bigint'}
+          .contains(tipo)) {
         return int.parse(value);
       }
       return double.parse(value.replaceAll(',', '.'));
@@ -182,7 +281,8 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
       if (const ['0', 'false', 'no', 'off'].contains(normalized)) {
         return false;
       }
-      throw FormatException('Il parametro ${parametro.parametro} deve essere booleano');
+      throw FormatException(
+          'Il parametro ${parametro.parametro} deve essere booleano');
     }
 
     if (_isJsonType(tipo)) {
@@ -267,9 +367,32 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
     return null;
   }
 
+  bool _isParametroModified(LaserRobotParametro parametro) {
+    if (!parametro.modificabile) {
+      return false;
+    }
+
+    final controller = _controllers[parametro.parametro];
+    if (controller == null) {
+      return false;
+    }
+
+    return controller.text != _displayValue(parametro.valore);
+  }
+
   Future<void> _saveParameters() async {
+    final modifiedParameters = _parametri.where(_isParametroModified).toList();
+
+    if (modifiedParameters.isEmpty) {
+      Messenger.showSnackBar(
+        context,
+        textToShow: 'Nessuna modifica da salvare',
+      );
+      return;
+    }
+
     final errors = <String>[];
-    for (final parametro in _parametri) {
+    for (final parametro in modifiedParameters) {
       final error = _validateParametro(parametro);
       if (error != null) {
         errors.add(error);
@@ -286,15 +409,12 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
     });
 
     try {
-      final payload = _parametri.map((parametro) {
+      final payload = modifiedParameters.map((parametro) {
         final controller = _controllers[parametro.parametro];
         final rawValue = controller?.text ?? '';
-        final value = parametro.modificabile
-            ? _parseValueForParametro(parametro, rawValue)
-            : parametro.valore;
         return {
           'parametro': parametro.parametro,
-          'valore': value,
+          'valore': _parseValueForParametro(parametro, rawValue),
         };
       }).toList();
 
@@ -324,7 +444,8 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
       setState(() {
         _syncFromSettings(widget.laserPageController.settings);
       });
-      Messenger.showSnackBar(context, textToShow: 'Parametri salvati correttamente');
+      Messenger.showSnackBar(context,
+          textToShow: 'Parametri salvati correttamente');
     } catch (e) {
       if (e is ResponseError && e.message.trim().isNotEmpty && mounted) {
         Messenger.showMessageGenericError(context, e.message, 2);
@@ -350,8 +471,12 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
   Widget _buildParametroCard(LaserRobotParametro parametro) {
     final controller = _controllers[parametro.parametro]!;
     final isNumeric = _isNumericType(parametro.tipo);
-    final isBool = _isBoolType(parametro.tipo);
     final isJson = _isJsonType(parametro.tipo);
+    final dropdownOptions = _dropdownOptions(parametro.valoriAmmessi);
+    final selectedDropdownValue =
+        dropdownOptions.any((option) => option.value == controller.text)
+            ? controller.text
+            : null;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -420,14 +545,30 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
               ),
             ),
             const SizedBox(height: 10),
-            if (isBool)
-              TextFormField(
-                controller: controller,
-                enabled: parametro.modificabile,
-                decoration: const InputDecoration(
-                  labelText: 'Valore',
-                ),
-                keyboardType: TextInputType.text,
+            if (dropdownOptions.isNotEmpty)
+              DropdownButtonFormField<String>(
+                initialValue: selectedDropdownValue,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Valore'),
+                hint: const Text('Seleziona un valore'),
+                items: dropdownOptions
+                    .map(
+                      (option) => DropdownMenuItem<String>(
+                        value: option.value,
+                        child: Text(
+                          option.label,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: parametro.modificabile
+                    ? (value) {
+                        if (value != null) {
+                          controller.text = value;
+                        }
+                      }
+                    : null,
               )
             else
               TextFormField(
@@ -437,12 +578,11 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
                   labelText: 'Valore',
                   helperText: isJson
                       ? 'Inserisci JSON valido'
-                      : (isNumeric
-                          ? 'Inserisci un numero'
-                          : 'Valore testuale'),
+                      : (isNumeric ? 'Inserisci un numero' : 'Valore testuale'),
                 ),
                 keyboardType: isNumeric
-                    ? const TextInputType.numberWithOptions(decimal: true, signed: true)
+                    ? const TextInputType.numberWithOptions(
+                        decimal: true, signed: true)
                     : TextInputType.text,
                 minLines: isJson ? 3 : 1,
                 maxLines: isJson ? 6 : 1,
@@ -456,6 +596,10 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
   @override
   Widget build(BuildContext context) {
     final grouped = _groupByCategory();
+    final baseTitle =
+        'TUTTI I PARAMETRI - ${widget.laserPageController.settings.serialeRobot}';
+    final pageTitle =
+        _expandedSection == null ? baseTitle : '$baseTitle | $_expandedSection';
 
     return Scaffold(
       appBar: AppBar(
@@ -506,7 +650,7 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
         surfaceTintColor: Colors.transparent,
         flexibleSpace: const GradientAppBarBackground(),
         title: Text(
-          'TUTTI I PARAMETRI - ${widget.laserPageController.settings.serialeRobot}',
+          pageTitle,
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -524,7 +668,10 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
                   return Card(
                     margin: const EdgeInsets.only(bottom: 16),
                     child: ExpansionTile(
-                      initiallyExpanded: true,
+                      controller: _sectionController(entry.key),
+                      initiallyExpanded: false,
+                      onExpansionChanged: (isExpanded) =>
+                          _onSectionExpansionChanged(entry.key, isExpanded),
                       title: Text(
                         entry.key,
                         style: const TextStyle(fontWeight: FontWeight.bold),

@@ -1,0 +1,3745 @@
+SPECIFICA PARAMETRI CONFIGURABILI - LASER ROBOT APP
+===================================================
+
+Obiettivo
+---------
+Rendere configurabile dall'app Flutter il maggior numero possibile di comportamenti oggi presenti
+nel software robot, mantenendo come default i valori attuali.
+
+Convenzione nomi
+----------------
+I parametri usano nomi univoci in dot notation, ad esempio:
+
+    motion.weld.speed_mm_s
+    geometry.polyline.simple.pre_exit.dz_mm
+    timing.laser_off_before_exit_s
+
+Questa convenzione permette di:
+- usare gli stessi nomi in Flutter;
+- salvarli facilmente in JSON;
+- distinguere chiaramente sezioni e significato;
+- evitare nomi legacy poco chiari come "uscitaxd", "uscitaxu", "raggio", ecc.
+
+Tipi usati
+----------
+bool        = true / false
+int         = numero intero
+double      = numero decimale
+string      = testo
+enum        = uno tra valori predefiniti
+array       = lista
+array<int>  = lista di interi
+array<double> = lista di numeri decimali
+array<posj> = lista di pose articolari robot [j1,j2,j3,j4,j5,j6]
+
+
+======================================================================
+1. LAVORAZIONE / JOB
+======================================================================
+
+Parametro:
+    job.rail_type
+Tipo:
+    enum
+Default:
+    controrotaiadoppia
+Descrizione:
+    Tipo di lavorazione.
+Valori:
+    controrotaiadoppia
+    controrotaiasemplice
+    piano
+
+Parametro:
+    job.orientation_mode
+Tipo:
+    enum
+Default:
+    verticale
+Descrizione:
+    Modalità geometrica della lavorazione.
+Valori:
+    verticale
+    orizzontale
+
+Parametro:
+    job.interpolation_mode
+Tipo:
+    enum
+Default:
+    poligono
+Descrizione:
+    Motore di calcolo percorsi utilizzato.
+Valori:
+    poligono
+    nuvola
+
+Parametro:
+    job.layer_index
+Tipo:
+    int
+Default:
+    -1
+Descrizione:
+    Numero dello strato corrente.
+
+Parametro:
+    job.start_from_last_weld
+Tipo:
+    bool
+Default:
+    false
+Descrizione:
+    Abilita la ripartenza da un cordone già eseguito.
+
+Parametro:
+    job.last_weld_index
+Tipo:
+    int
+Default:
+    0
+Descrizione:
+    Ultimo cordone eseguito usato come riferimento per la ripartenza.
+
+
+======================================================================
+2. PUNTI E ORDINE GEOMETRICO
+======================================================================
+
+Parametro:
+    path.base_points
+Tipo:
+    array
+Default:
+    []
+Descrizione:
+    Elenco punti base nel formato [x,y,z,a,b,c].
+
+Parametro:
+    path.point_order
+Tipo:
+    array<int>
+Default:
+    []
+Descrizione:
+    Ordine dei punti nella geometria.
+
+Parametro:
+    path.perimeter_order
+Tipo:
+    array<int>
+Default:
+    null
+Descrizione:
+    Ordine esplicito del perimetro.
+
+Parametro:
+    path.base_curve_indices
+Tipo:
+    array<int>
+Default:
+    null
+Descrizione:
+    Indici che costituiscono il cordone/curva base.
+
+Parametro:
+    path.limit_curve_indices
+Tipo:
+    array<int>
+Default:
+    null
+Descrizione:
+    Indici che costituiscono il cordone/curva limite.
+
+Parametro:
+    path.weld_direction
+Tipo:
+    enum
+Default:
+    ""
+Descrizione:
+    Direzione del singolo cordone.
+Valori:
+    min_max
+    max_min
+
+Parametro:
+    path.weld_order
+Tipo:
+    enum
+Default:
+    null
+Descrizione:
+    Ordine di esecuzione dei cordoni lungo un asse.
+Valori tipici:
+    min_max_x
+    max_min_x
+    min_max_y
+    max_min_y
+    min_max_z
+    max_min_z
+
+Parametro:
+    path.alternating_order
+Tipo:
+    bool
+Default:
+    false
+Descrizione:
+    Riordina i cordoni in modalità alternata.
+
+
+======================================================================
+3. DIMENSIONI, PASSO E SOVRAPPOSIZIONE CORDONI
+======================================================================
+
+Parametro:
+    path.weld_width_mm
+Tipo:
+    double
+Default:
+    3.0
+Descrizione:
+    Larghezza nominale del cordone.
+
+Parametro:
+    path.overlap_percent
+Tipo:
+    double
+Default:
+    33.3
+Descrizione:
+    Percentuale di sovrapposizione tra cordoni.
+
+Parametro:
+    path.step_mm
+Tipo:
+    double
+Default:
+    2.0
+Descrizione:
+    Passo esplicito tra cordoni.
+
+Parametro:
+    path.step_mode
+Tipo:
+    enum
+Default:
+    overlap
+Descrizione:
+    Stabilisce come calcolare il passo.
+Valori:
+    overlap  = calcola il passo dalla larghezza e dalla sovrapposizione
+    explicit = usa direttamente path.step_mm
+
+Parametro:
+    path.step_round_decimals
+Tipo:
+    int
+Default:
+    1
+Descrizione:
+    Numero di decimali usati per arrotondare il passo.
+
+Parametro:
+    path.start_offset_mm
+Tipo:
+    double
+Default:
+    0.0
+Descrizione:
+    Offset iniziale della zona da saldare.
+
+Parametro:
+    path.end_offset_mm
+Tipo:
+    double
+Default:
+    0.0
+Descrizione:
+    Offset finale della zona da saldare.
+
+Parametro:
+    path.min_weld_length_mm
+Tipo:
+    double
+Default:
+    0.0
+Descrizione:
+    Lunghezza minima richiesta per mantenere un cordone.
+
+Parametro:
+    path.sample_step_mm
+Tipo:
+    double
+Default:
+    2.0
+Descrizione:
+    Passo di campionamento interno lungo il cordone/polilinea.
+
+
+======================================================================
+4. STRATI
+======================================================================
+
+Parametro:
+    layer.step_x_mm
+Tipo:
+    double
+Default:
+    0.0
+Descrizione:
+    Spostamento X per strato.
+
+Parametro:
+    layer.step_y_mm
+Tipo:
+    double
+Default:
+    0.0
+Descrizione:
+    Spostamento Y per strato.
+
+Parametro:
+    layer.step_z_mm
+Tipo:
+    double
+Default:
+    0.0
+Descrizione:
+    Spostamento Z per strato.
+
+Parametro:
+    layer.current_index
+Tipo:
+    int
+Default:
+    -1
+Descrizione:
+    Numero dello strato corrente.
+
+Parametro:
+    layer.preview_offsets_mm
+Tipo:
+    array<double>
+Default:
+    []
+Descrizione:
+    Elenco quote usate per la preview degli strati.
+
+Parametro:
+    layer.alternate_half_weld_offset_enabled
+Tipo:
+    bool
+Default:
+    comportamento attuale
+Descrizione:
+    Abilita lo sfalsamento di mezzo cordone sugli strati dispari.
+
+
+======================================================================
+5. INTERPOLAZIONE NUVOLA
+======================================================================
+
+Parametro:
+    interpolation.method
+Tipo:
+    enum
+Default:
+    smooth
+Descrizione:
+    Metodo di interpolazione.
+Valori:
+    smooth
+    linear
+    idw
+    guided_loft_z
+
+Parametro:
+    interpolation.sample_step_mm
+Tipo:
+    double
+Default:
+    2.0
+Descrizione:
+    Distanza tra sample dello stesso cordone.
+
+Parametro:
+    interpolation.idw_neighbor_count
+Tipo:
+    int
+Default:
+    8
+Descrizione:
+    Numero di vicini usati dall'interpolazione IDW.
+
+Parametro:
+    interpolation.idw_power
+Tipo:
+    double
+Default:
+    2.0
+Descrizione:
+    Esponente del peso IDW.
+
+Parametro:
+    interpolation.exact_tolerance_mm
+Tipo:
+    double
+Default:
+    0.001
+Descrizione:
+    Tolleranza per considerare coincidente un punto reale.
+
+Parametro:
+    interpolation.linear_candidate_count
+Tipo:
+    int
+Default:
+    24
+Descrizione:
+    Numero di punti candidati usati nell'interpolazione triangolare locale.
+
+Parametro:
+    interpolation.rbf_kernel
+Tipo:
+    enum
+Default:
+    thin_plate
+Descrizione:
+    Kernel RBF.
+Valori:
+    thin_plate
+    cubic
+
+Parametro:
+    interpolation.rbf_lambda
+Tipo:
+    double
+Default:
+    1e-8
+Descrizione:
+    Regolarizzazione RBF.
+
+Parametro:
+    interpolation.strict_measured_height
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Mantiene tassativa la quota misurata quando il punto coincide con un campione reale.
+
+Parametro:
+    interpolation.grid_only
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    I punti misurati non generano cordoni aggiuntivi fuori dalla griglia.
+
+Parametro:
+    interpolation.fill_area
+Tipo:
+    bool
+Default:
+    false
+Descrizione:
+    In guided loft riempie anche le zone parziali della superficie.
+
+Parametro:
+    interpolation.debug_hull
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Abilita diagnostica e visualizzazione hull.
+
+
+======================================================================
+6. SEMPLIFICAZIONE POLILINEA
+======================================================================
+
+Parametro:
+    polyline.execution_mode
+Tipo:
+    enum
+Default:
+    movel
+Descrizione:
+    Modalità dichiarata di esecuzione.
+Valori:
+    movel
+    movesx
+
+Parametro:
+    polyline.max_points_per_weld
+Tipo:
+    int
+Default:
+    5
+Descrizione:
+    Numero massimo di punti mantenuti per ogni cordone.
+
+Parametro:
+    polyline.simplify_tolerance_mm
+Tipo:
+    double
+Default:
+    1.0
+Descrizione:
+    Tolleranza di semplificazione XYZ.
+
+Parametro:
+    polyline.last_point_radius_zero
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Impone raggio zero all'ultimo punto del cordone.
+
+
+======================================================================
+7. VELOCITA' GENERALI
+======================================================================
+
+Parametro:
+    motion.travel.speed_mm_s
+Tipo:
+    double
+Default:
+    600
+Descrizione:
+    Velocità generale degli spostamenti non in saldatura.
+
+Parametro:
+    motion.travel.acceleration_mm_s2
+Tipo:
+    double
+Default:
+    1500
+Descrizione:
+    Accelerazione generale degli spostamenti.
+
+Parametro:
+    motion.approach.speed_mm_s
+Tipo:
+    double
+Default:
+    100
+Descrizione:
+    Velocità di ingresso dal pre-start al punto iniziale.
+
+Parametro:
+    motion.approach.acceleration_mm_s2
+Tipo:
+    double
+Default:
+    100
+Descrizione:
+    Accelerazione di ingresso.
+
+Parametro:
+    motion.departure.speed_mm_s
+Tipo:
+    double/null
+Default:
+    null
+Descrizione:
+    Velocità di allontanamento. Se null eredita la velocità travel.
+
+Parametro:
+    motion.weld.speed_mm_s
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Velocità di saldatura.
+
+Parametro:
+    motion.weld.acceleration_mm_s2
+Tipo:
+    double
+Default:
+    3000
+Descrizione:
+    Accelerazione di saldatura.
+
+
+======================================================================
+8. RAGGI DI BLENDING GENERALI
+======================================================================
+
+Parametro:
+    motion.radius.travel_mm
+Tipo:
+    double
+Default:
+    5
+Descrizione:
+    Raggio standard per gli spostamenti.
+
+Parametro:
+    motion.radius.exit_mm
+Tipo:
+    double
+Default:
+    15
+Descrizione:
+    Raggio usato nella fase di uscita.
+
+Parametro:
+    motion.radius.weld_mm
+Tipo:
+    double
+Default:
+    1
+Descrizione:
+    Raggio piccolo durante saldatura e pre-exit.
+
+Parametro:
+    motion.radius.polyline_pre_start_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Raggio del pre-start polilinea.
+
+Parametro:
+    motion.radius.polyline_start_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Raggio dell'ingresso sul punto iniziale polilinea.
+
+Parametro:
+    motion.radius.polyline_last_point_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Raggio dell'ultimo punto della polilinea.
+
+Parametro:
+    motion.radius.return_to_pre_start_mm
+Tipo:
+    double
+Default:
+    1
+Descrizione:
+    Raggio del rientro al pre-start dopo safe position.
+
+
+======================================================================
+9. TIMING LASER E PROCESSO
+======================================================================
+
+Parametro:
+    timing.laser_on_before_weld_s
+Tipo:
+    double
+Default:
+    0.1
+Descrizione:
+    Attesa dopo laser ON prima del moto di saldatura.
+
+Parametro:
+    timing.end_weld_before_laser_off_s
+Tipo:
+    double
+Default:
+    0.2
+Descrizione:
+    Attesa a fine cordone prima del laser OFF.
+
+Parametro:
+    timing.laser_off_before_exit_s
+Tipo:
+    double
+Default:
+    0.5
+Descrizione:
+    Attesa dopo laser OFF prima del distacco.
+
+Parametro:
+    timing.first_weld_extra_wait_s
+Tipo:
+    double
+Default:
+    1.0
+Descrizione:
+    Attesa extra sul primo cordone.
+
+Parametro:
+    timing.gas_before_mass_s
+Tipo:
+    double
+Default:
+    0.5
+Descrizione:
+    Attesa tra gas ON e massa ON.
+
+Parametro:
+    timing.pause_before_mass_off_s
+Tipo:
+    double
+Default:
+    0.6
+Descrizione:
+    Attesa in pausa prima di massa OFF.
+
+Parametro:
+    timing.wire_enable_wait_s
+Tipo:
+    double
+Default:
+    1.0
+Descrizione:
+    Attesa nella sequenza WIRE-ON.
+
+Parametro:
+    timing.after_path_injection_s
+Tipo:
+    double
+Default:
+    2.0
+Descrizione:
+    Attesa dopo il caricamento dei percorsi calcolati.
+
+Parametro:
+    timing.robot_status_interval_s
+Tipo:
+    double
+Default:
+    0.25
+Descrizione:
+    Frequenza di invio dello stato robot.
+
+Parametro:
+    timing.weld_socket_poll_timeout_s
+Tipo:
+    double
+Default:
+    0.8
+Descrizione:
+    Timeout lettura socket durante la gestione del cordone.
+
+
+======================================================================
+10. I/O DIGITALI
+======================================================================
+
+Parametro:
+    io.gas_output_pin
+Tipo:
+    int
+Default:
+    1
+Descrizione:
+    Pin digitale gas.
+
+Parametro:
+    io.laser_output_pin
+Tipo:
+    int
+Default:
+    3
+Descrizione:
+    Pin digitale laser.
+
+Parametro:
+    io.mass_output_pin
+Tipo:
+    int
+Default:
+    4
+Descrizione:
+    Pin digitale massa/filo.
+
+Parametro:
+    io.laser_off_confirmation_enabled
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Controlla che il laser sia effettivamente spento.
+
+Parametro:
+    io.laser_off_confirmation_timeout_s
+Tipo:
+    double/null
+Default:
+    null
+Descrizione:
+    Timeout massimo del controllo laser OFF. Oggi non esiste un timeout.
+
+Parametro:
+    io.laser_off_retry_interval_s
+Tipo:
+    double
+Default:
+    0.0
+Descrizione:
+    Attesa tra tentativi di spegnimento laser.
+
+Parametro:
+    io.laser_off_max_retries
+Tipo:
+    int/null
+Default:
+    null
+Descrizione:
+    Numero massimo di retry. Null mantiene il comportamento attuale senza limite.
+
+
+======================================================================
+11. ACQUISIZIONE PUNTI - STACCO DOPO SETPOINT
+======================================================================
+
+Piano
+-----
+
+Parametro:
+    capture.plane.retreat_dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Spostamento X dopo acquisizione punto.
+
+Parametro:
+    capture.plane.retreat_dy_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Spostamento Y dopo acquisizione punto.
+
+Parametro:
+    capture.plane.retreat_dz_mm
+Tipo:
+    double
+Default:
+    5
+Descrizione:
+    Spostamento Z dopo acquisizione punto.
+
+Controrotaia semplice
+---------------------
+
+Parametro:
+    capture.simple.retreat_dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Spostamento X dopo acquisizione punto.
+
+Parametro:
+    capture.simple.retreat_dy_mm
+Tipo:
+    double
+Default:
+    5
+Descrizione:
+    Spostamento Y dopo acquisizione punto.
+
+Parametro:
+    capture.simple.retreat_dz_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Spostamento Z dopo acquisizione punto.
+
+Controrotaia doppia
+-------------------
+
+Parametro:
+    capture.double.retreat_dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Spostamento X dopo acquisizione punto.
+
+Parametro:
+    capture.double.retreat_dy_mm
+Tipo:
+    double
+Default:
+    5
+Descrizione:
+    Spostamento Y dopo acquisizione punto.
+
+Parametro:
+    capture.double.retreat_dz_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Spostamento Z dopo acquisizione punto.
+
+Cinematica stacco SETPOINT
+--------------------------
+
+Parametro:
+    capture.retreat_speed_mm_s
+Tipo:
+    double
+Default:
+    100
+Descrizione:
+    Velocità stacco dopo acquisizione.
+
+Parametro:
+    capture.retreat_acceleration_mm_s2
+Tipo:
+    double
+Default:
+    100
+Descrizione:
+    Accelerazione stacco.
+
+Parametro:
+    capture.retreat_radius_mm
+Tipo:
+    double
+Default:
+    1
+Descrizione:
+    Raggio stacco.
+
+
+======================================================================
+12. GEOMETRIA LINEARE - PIANO
+======================================================================
+
+Pre-start
+---------
+
+Parametro:
+    geometry.linear.plane.pre_start.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X relativo prima di entrare sul cordone.
+
+Parametro:
+    geometry.linear.plane.pre_start.dy_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset Y relativo prima di entrare sul cordone.
+
+Parametro:
+    geometry.linear.plane.pre_start.dz_mm
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Offset Z relativo prima di entrare sul cordone.
+
+Pre-exit
+--------
+
+Parametro:
+    geometry.linear.plane.pre_exit.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X relativo appena dopo la fine del cordone.
+
+Parametro:
+    geometry.linear.plane.pre_exit.dy_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset Y relativo appena dopo la fine del cordone.
+
+Parametro:
+    geometry.linear.plane.pre_exit.dz_mm
+Tipo:
+    double
+Default:
+    5
+Descrizione:
+    Sollevamento Z appena dopo la fine del cordone.
+
+Exit
+----
+
+Parametro:
+    geometry.linear.plane.exit.dx_mm
+Tipo:
+    double
+Default:
+    -10
+Descrizione:
+    Offset X della posizione di uscita.
+
+Parametro:
+    geometry.linear.plane.exit.dy_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset Y della posizione di uscita.
+
+Parametro:
+    geometry.linear.plane.exit.dz_mm
+Tipo:
+    double
+Default:
+    30
+Descrizione:
+    Offset Z della posizione di uscita.
+
+Return
+------
+
+Parametro:
+    geometry.linear.plane.return.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X della posizione di ritorno.
+
+Parametro:
+    geometry.linear.plane.return.dy_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset Y della posizione di ritorno.
+
+Parametro:
+    geometry.linear.plane.return.dz_mm
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Offset Z della posizione di ritorno.
+
+
+======================================================================
+13. GEOMETRIA LINEARE - CONTROROTAIA SEMPLICE
+======================================================================
+
+Pre-start
+---------
+
+Parametro:
+    geometry.linear.simple.pre_start.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X relativo prima dell'ingresso.
+
+Parametro:
+    geometry.linear.simple.pre_start.dy_mm
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Distacco Y prima dell'ingresso.
+
+Parametro:
+    geometry.linear.simple.pre_start.dz_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset Z prima dell'ingresso.
+
+Pre-exit
+--------
+
+Parametro:
+    geometry.linear.simple.pre_exit.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X appena dopo la fine del cordone.
+
+Parametro:
+    geometry.linear.simple.pre_exit.dy_mm
+Tipo:
+    double
+Default:
+    6
+Descrizione:
+    Distacco Y appena dopo la fine del cordone.
+
+Parametro:
+    geometry.linear.simple.pre_exit.dz_mm
+Tipo:
+    double
+Default:
+    5
+Descrizione:
+    Sollevamento Z appena dopo la fine del cordone.
+
+Exit
+----
+
+Parametro:
+    geometry.linear.simple.exit.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X uscita.
+
+Parametro:
+    geometry.linear.simple.exit.dy_mm
+Tipo:
+    double
+Default:
+    30
+Descrizione:
+    Distacco Y uscita.
+
+Parametro:
+    geometry.linear.simple.exit.dz_mm
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Sollevamento Z uscita.
+
+Return
+------
+
+Parametro:
+    geometry.linear.simple.return.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X ritorno.
+
+Parametro:
+    geometry.linear.simple.return.dy_mm
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Distacco Y ritorno.
+
+Parametro:
+    geometry.linear.simple.return.dz_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset Z ritorno.
+
+
+======================================================================
+14. GEOMETRIA LINEARE - CONTROROTAIA DOPPIA
+======================================================================
+
+Pre-start
+---------
+
+Parametro:
+    geometry.linear.double.pre_start.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X relativo.
+
+Parametro:
+    geometry.linear.double.pre_start.dy_mm
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Distacco Y prima dell'ingresso.
+
+Parametro:
+    geometry.linear.double.pre_start.dz_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset Z relativo.
+
+Pre-exit
+--------
+
+Parametro:
+    geometry.linear.double.pre_exit.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X appena dopo il cordone.
+
+Parametro:
+    geometry.linear.double.pre_exit.dy_mm
+Tipo:
+    double
+Default:
+    30
+Descrizione:
+    Distacco Y appena dopo il cordone.
+
+Parametro:
+    geometry.linear.double.pre_exit.dz_mm
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Sollevamento Z appena dopo il cordone.
+
+Exit
+----
+
+Parametro:
+    geometry.linear.double.exit.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X uscita.
+
+Parametro:
+    geometry.linear.double.exit.dy_mm
+Tipo:
+    double
+Default:
+    30
+Descrizione:
+    Distacco Y uscita.
+
+Parametro:
+    geometry.linear.double.exit.dz_mm
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Sollevamento Z uscita.
+
+Return
+------
+
+Parametro:
+    geometry.linear.double.return.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X ritorno.
+
+Parametro:
+    geometry.linear.double.return.dy_mm
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Distacco Y ritorno.
+
+Parametro:
+    geometry.linear.double.return.dz_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset Z ritorno.
+
+Parametro:
+    geometry.linear.double.force_average_x
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Usa X media tra start e end per il cordone doppio lineare.
+
+
+======================================================================
+15. GEOMETRIA POLILINEA - PIANO
+======================================================================
+
+Pre-start
+---------
+
+Parametro:
+    geometry.polyline.plane.pre_start.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X prima dell'ingresso.
+
+Parametro:
+    geometry.polyline.plane.pre_start.dy_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset Y prima dell'ingresso.
+
+Parametro:
+    geometry.polyline.plane.pre_start.dz_mm
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Sollevamento Z prima dell'ingresso.
+
+Pre-exit
+--------
+
+Parametro:
+    geometry.polyline.plane.pre_exit.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X dopo il cordone.
+
+Parametro:
+    geometry.polyline.plane.pre_exit.dy_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset Y dopo il cordone.
+
+Parametro:
+    geometry.polyline.plane.pre_exit.dz_mm
+Tipo:
+    double
+Default:
+    5
+Descrizione:
+    Sollevamento Z dopo il cordone.
+
+Exit
+----
+
+Parametro:
+    geometry.polyline.plane.exit.dx_mm
+Tipo:
+    double
+Default:
+    -10
+Descrizione:
+    Offset X uscita.
+
+Parametro:
+    geometry.polyline.plane.exit.dy_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset Y uscita.
+
+Parametro:
+    geometry.polyline.plane.exit.dz_mm
+Tipo:
+    double
+Default:
+    30
+Descrizione:
+    Sollevamento Z uscita.
+
+Return
+------
+
+Parametro:
+    geometry.polyline.plane.return.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X ritorno.
+
+Parametro:
+    geometry.polyline.plane.return.dy_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset Y ritorno.
+
+Parametro:
+    geometry.polyline.plane.return.dz_mm
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Sollevamento Z ritorno.
+
+
+======================================================================
+16. GEOMETRIA POLILINEA - CONTROROTAIA SEMPLICE
+======================================================================
+
+Pre-start
+---------
+
+Parametro:
+    geometry.polyline.simple.pre_start.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X prima dell'ingresso.
+
+Parametro:
+    geometry.polyline.simple.pre_start.dy_mm
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Distacco Y prima dell'ingresso.
+
+Parametro:
+    geometry.polyline.simple.pre_start.dz_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset Z prima dell'ingresso.
+
+Pre-exit
+--------
+
+Parametro:
+    geometry.polyline.simple.pre_exit.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X dopo il cordone.
+
+Parametro:
+    geometry.polyline.simple.pre_exit.dy_mm
+Tipo:
+    double
+Default:
+    3
+Descrizione:
+    Distacco Y appena dopo il cordone.
+
+Parametro:
+    geometry.polyline.simple.pre_exit.dz_mm
+Tipo:
+    double
+Default:
+    1
+Descrizione:
+    Sollevamento Z appena dopo il cordone.
+
+Exit
+----
+
+Parametro:
+    geometry.polyline.simple.exit.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X uscita.
+
+Parametro:
+    geometry.polyline.simple.exit.dy_mm
+Tipo:
+    double
+Default:
+    30
+Descrizione:
+    Distacco Y uscita.
+
+Parametro:
+    geometry.polyline.simple.exit.dz_mm
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Sollevamento Z uscita.
+
+Return
+------
+
+Parametro:
+    geometry.polyline.simple.return.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X ritorno.
+
+Parametro:
+    geometry.polyline.simple.return.dy_mm
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Distacco Y ritorno.
+
+Parametro:
+    geometry.polyline.simple.return.dz_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset Z ritorno.
+
+
+======================================================================
+17. GEOMETRIA POLILINEA - CONTROROTAIA DOPPIA
+======================================================================
+
+Pre-start
+---------
+
+Parametro:
+    geometry.polyline.double.pre_start.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X prima dell'ingresso.
+
+Parametro:
+    geometry.polyline.double.pre_start.dy_mm
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Distacco Y prima dell'ingresso.
+
+Parametro:
+    geometry.polyline.double.pre_start.dz_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset Z prima dell'ingresso.
+
+Pre-exit
+--------
+
+Parametro:
+    geometry.polyline.double.pre_exit.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X dopo il cordone.
+
+Parametro:
+    geometry.polyline.double.pre_exit.dy_mm
+Tipo:
+    double
+Default:
+    5
+Descrizione:
+    Distacco Y appena dopo il cordone.
+
+Parametro:
+    geometry.polyline.double.pre_exit.dz_mm
+Tipo:
+    double
+Default:
+    5
+Descrizione:
+    Sollevamento Z appena dopo il cordone.
+
+Exit
+----
+
+Parametro:
+    geometry.polyline.double.exit.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X uscita.
+
+Parametro:
+    geometry.polyline.double.exit.dy_mm
+Tipo:
+    double
+Default:
+    30
+Descrizione:
+    Distacco Y uscita.
+
+Parametro:
+    geometry.polyline.double.exit.dz_mm
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Sollevamento Z uscita.
+
+Return
+------
+
+Parametro:
+    geometry.polyline.double.return.dx_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset X ritorno.
+
+Parametro:
+    geometry.polyline.double.return.dy_mm
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Distacco Y ritorno.
+
+Parametro:
+    geometry.polyline.double.return.dz_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Offset Z ritorno.
+
+
+======================================================================
+18. OFFSET ORIENTAMENTO DELLE FASI
+======================================================================
+
+Nota:
+Per ogni combinazione seguente vanno previsti anche:
+
+    da_deg
+    db_deg
+    dc_deg
+
+Tutti con default:
+    0.0
+
+Combinazioni:
+    geometry.linear.plane.pre_start
+    geometry.linear.plane.pre_exit
+    geometry.linear.plane.exit
+    geometry.linear.plane.return
+
+    geometry.linear.simple.pre_start
+    geometry.linear.simple.pre_exit
+    geometry.linear.simple.exit
+    geometry.linear.simple.return
+
+    geometry.linear.double.pre_start
+    geometry.linear.double.pre_exit
+    geometry.linear.double.exit
+    geometry.linear.double.return
+
+    geometry.polyline.plane.pre_start
+    geometry.polyline.plane.pre_exit
+    geometry.polyline.plane.exit
+    geometry.polyline.plane.return
+
+    geometry.polyline.simple.pre_start
+    geometry.polyline.simple.pre_exit
+    geometry.polyline.simple.exit
+    geometry.polyline.simple.return
+
+    geometry.polyline.double.pre_start
+    geometry.polyline.double.pre_exit
+    geometry.polyline.double.exit
+    geometry.polyline.double.return
+
+Esempio completo:
+    geometry.polyline.simple.pre_exit.da_deg
+    geometry.polyline.simple.pre_exit.db_deg
+    geometry.polyline.simple.pre_exit.dc_deg
+
+
+======================================================================
+19. CINEMATICA FASI - LINEARE
+======================================================================
+
+Pre-start
+---------
+
+Parametro:
+    motion.linear.pre_start.speed_mm_s
+Tipo:
+    double
+Default:
+    600
+Descrizione:
+    Velocità movimento verso pre-start.
+
+Parametro:
+    motion.linear.pre_start.acceleration_mm_s2
+Tipo:
+    double
+Default:
+    1500
+Descrizione:
+    Accelerazione verso pre-start.
+
+Parametro:
+    motion.linear.pre_start.radius_mm
+Tipo:
+    double
+Default:
+    5
+Descrizione:
+    Raggio blending pre-start.
+
+Start
+-----
+
+Parametro:
+    motion.linear.start.speed_mm_s
+Tipo:
+    double
+Default:
+    100
+Descrizione:
+    Velocità ingresso sul punto iniziale.
+
+Parametro:
+    motion.linear.start.acceleration_mm_s2
+Tipo:
+    double
+Default:
+    100
+Descrizione:
+    Accelerazione ingresso.
+
+Parametro:
+    motion.linear.start.radius_mm
+Tipo:
+    double
+Default:
+    5
+Descrizione:
+    Raggio ingresso.
+
+Weld
+----
+
+Parametro:
+    motion.linear.weld.speed_mm_s
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Velocità saldatura lineare.
+
+Parametro:
+    motion.linear.weld.acceleration_mm_s2
+Tipo:
+    double
+Default:
+    3000
+Descrizione:
+    Accelerazione saldatura lineare.
+
+Parametro:
+    motion.linear.weld.radius_mm
+Tipo:
+    double
+Default:
+    1
+Descrizione:
+    Raggio saldatura lineare.
+
+Pre-exit
+--------
+
+Parametro:
+    motion.linear.pre_exit.speed_mm_s
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Velocità pre-exit.
+
+Parametro:
+    motion.linear.pre_exit.acceleration_mm_s2
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Accelerazione pre-exit.
+
+Parametro:
+    motion.linear.pre_exit.radius_mm
+Tipo:
+    double
+Default:
+    1
+Descrizione:
+    Raggio pre-exit.
+
+Exit
+----
+
+Parametro:
+    motion.linear.exit.speed_mm_s
+Tipo:
+    double
+Default:
+    600
+Descrizione:
+    Velocità uscita.
+
+Parametro:
+    motion.linear.exit.acceleration_mm_s2
+Tipo:
+    double
+Default:
+    1500
+Descrizione:
+    Accelerazione uscita.
+
+Parametro:
+    motion.linear.exit.radius_mm
+Tipo:
+    double
+Default:
+    15
+Descrizione:
+    Raggio uscita.
+
+Return
+------
+
+Parametro:
+    motion.linear.return.speed_mm_s
+Tipo:
+    double
+Default:
+    600
+Descrizione:
+    Velocità ritorno.
+
+Parametro:
+    motion.linear.return.acceleration_mm_s2
+Tipo:
+    double
+Default:
+    1500
+Descrizione:
+    Accelerazione ritorno.
+
+Parametro:
+    motion.linear.return.radius_mm
+Tipo:
+    double
+Default:
+    5
+Descrizione:
+    Raggio ritorno.
+
+
+======================================================================
+20. CINEMATICA FASI - POLILINEA
+======================================================================
+
+Pre-start
+---------
+
+Parametro:
+    motion.polyline.pre_start.speed_mm_s
+Tipo:
+    double
+Default:
+    600
+Descrizione:
+    Velocità pre-start polilinea.
+
+Parametro:
+    motion.polyline.pre_start.acceleration_mm_s2
+Tipo:
+    double
+Default:
+    1500
+Descrizione:
+    Accelerazione pre-start polilinea.
+
+Parametro:
+    motion.polyline.pre_start.radius_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Raggio pre-start polilinea.
+
+Start
+-----
+
+Parametro:
+    motion.polyline.start.speed_mm_s
+Tipo:
+    double
+Default:
+    100
+Descrizione:
+    Velocità ingresso iniziale.
+
+Parametro:
+    motion.polyline.start.acceleration_mm_s2
+Tipo:
+    double
+Default:
+    100
+Descrizione:
+    Accelerazione ingresso iniziale.
+
+Parametro:
+    motion.polyline.start.radius_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Raggio ingresso iniziale.
+
+Weld
+----
+
+Parametro:
+    motion.polyline.weld.speed_mm_s
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Velocità saldatura polilinea.
+
+Parametro:
+    motion.polyline.weld.acceleration_mm_s2
+Tipo:
+    double
+Default:
+    3000
+Descrizione:
+    Accelerazione saldatura polilinea.
+
+Parametro:
+    motion.polyline.weld.radius_mm
+Tipo:
+    double
+Default:
+    1
+Descrizione:
+    Raggio punti intermedi.
+
+Parametro:
+    motion.polyline.weld.last_point_radius_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Raggio dell'ultimo punto.
+
+Pre-exit
+--------
+
+Parametro:
+    motion.polyline.pre_exit.speed_mm_s
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Velocità pre-exit.
+
+Parametro:
+    motion.polyline.pre_exit.acceleration_mm_s2
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Accelerazione pre-exit.
+
+Parametro:
+    motion.polyline.pre_exit.radius_mm
+Tipo:
+    double
+Default:
+    1
+Descrizione:
+    Raggio pre-exit.
+
+Exit
+----
+
+Parametro:
+    motion.polyline.exit.speed_mm_s
+Tipo:
+    double
+Default:
+    600
+Descrizione:
+    Velocità uscita.
+
+Parametro:
+    motion.polyline.exit.acceleration_mm_s2
+Tipo:
+    double
+Default:
+    1500
+Descrizione:
+    Accelerazione uscita.
+
+Parametro:
+    motion.polyline.exit.radius_mm
+Tipo:
+    double
+Default:
+    15
+Descrizione:
+    Raggio uscita.
+
+Return
+------
+
+Parametro:
+    motion.polyline.return.speed_mm_s
+Tipo:
+    double
+Default:
+    600
+Descrizione:
+    Velocità ritorno.
+
+Parametro:
+    motion.polyline.return.acceleration_mm_s2
+Tipo:
+    double
+Default:
+    1500
+Descrizione:
+    Accelerazione ritorno.
+
+Parametro:
+    motion.polyline.return.radius_mm
+Tipo:
+    double
+Default:
+    5
+Descrizione:
+    Raggio ritorno.
+
+Safe -> Pre-start
+-----------------
+
+Parametro:
+    motion.polyline.safe_to_pre_start.speed_mm_s
+Tipo:
+    double
+Default:
+    80
+Descrizione:
+    Velocità dal safe position al pre-start.
+
+Parametro:
+    motion.polyline.safe_to_pre_start.acceleration_mm_s2
+Tipo:
+    double
+Default:
+    100
+Descrizione:
+    Accelerazione dal safe position al pre-start.
+
+Parametro:
+    motion.polyline.safe_to_pre_start.radius_mm
+Tipo:
+    double
+Default:
+    1
+Descrizione:
+    Raggio movimento dal safe position al pre-start.
+
+
+======================================================================
+21. SAFE POSITION
+======================================================================
+
+Parametro:
+    safety.safe_position.speed_deg_s
+Tipo:
+    double
+Default:
+    80
+Descrizione:
+    Velocità movej verso la safe position.
+
+Parametro:
+    safety.safe_position.acceleration_deg_s2
+Tipo:
+    double
+Default:
+    100
+Descrizione:
+    Accelerazione movej verso la safe position.
+
+Parametro:
+    safety.goto_safe_before_welding
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Vai in safe prima della lavorazione.
+
+Parametro:
+    safety.goto_safe_after_welding
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Vai in safe a fine lavorazione.
+
+Parametro:
+    safety.goto_safe_on_pause
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Vai in safe durante pausa.
+
+Parametro:
+    safety.goto_safe_on_stop
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Vai in safe su stop.
+
+Parametro:
+    safety.goto_safe_after_each_polyline_weld
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Dopo ogni cordone polilinea esegue il passaggio in safe.
+
+Parametro:
+    safety.return_to_pre_start_after_safe
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Dopo safe torna al pre-start.
+
+
+======================================================================
+22. SEQUENZA DI PROCESSO
+======================================================================
+
+Parametro:
+    sequence.enable_gas_before_welding
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Accende il gas prima del ciclo.
+
+Parametro:
+    sequence.enable_mass_before_welding
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Accende la massa prima della saldatura.
+
+Parametro:
+    sequence.enable_laser_before_motion
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Accende il laser prima del moto di saldatura.
+
+Parametro:
+    sequence.disable_laser_after_pre_exit
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Spegne il laser dopo il pre-exit.
+
+Parametro:
+    sequence.disable_gas_on_pause
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Spegne il gas in pausa.
+
+Parametro:
+    sequence.disable_mass_on_pause
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Spegne la massa in pausa.
+
+Parametro:
+    sequence.disable_outputs_at_end
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Spegne gas, laser e massa a fine lavoro.
+
+Parametro:
+    sequence.first_weld_extra_wait_enabled
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Abilita l'attesa extra sul primo cordone.
+
+Parametro:
+    sequence.stop_on_socket_disconnect
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Ferma la lavorazione se cade la connessione.
+
+Parametro:
+    sequence.return_after_each_weld
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Esegue il movimento di ritorno dopo ogni cordone.
+
+Parametro:
+    sequence.polyline_safe_roundtrip_enabled
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Abilita la sequenza exit -> safe -> pre-start.
+
+
+======================================================================
+23. MOVIMENTO MANUALE RELATIVO MOVE
+======================================================================
+
+Parametro:
+    manual.relative_move.speed_mm_s
+Tipo:
+    double
+Default:
+    600
+Descrizione:
+    Velocità movel relativo XYZ.
+
+Parametro:
+    manual.relative_move.acceleration_mm_s2
+Tipo:
+    double
+Default:
+    300
+Descrizione:
+    Accelerazione movel relativo XYZ.
+
+Parametro:
+    manual.relative_move.radius_mm
+Tipo:
+    double
+Default:
+    1
+Descrizione:
+    Raggio movel relativo XYZ.
+
+Parametro:
+    manual.relative_joint_speed_deg_s
+Tipo:
+    double
+Default:
+    600
+Descrizione:
+    Velocità movej relativo.
+
+Parametro:
+    manual.relative_joint_acceleration_deg_s2
+Tipo:
+    double
+Default:
+    300
+Descrizione:
+    Accelerazione movej relativo.
+
+Parametro:
+    manual.relative_joint_radius_deg
+Tipo:
+    double
+Default:
+    1
+Descrizione:
+    Raggio movej relativo.
+
+
+======================================================================
+24. MOVIMENTO MANUALE MOVETO
+======================================================================
+
+Parametro:
+    manual.moveto.speed_deg_s
+Tipo:
+    double
+Default:
+    40
+Descrizione:
+    Velocità movej verso una posa articolare richiesta dall'app.
+
+Parametro:
+    manual.moveto.acceleration_deg_s2
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Accelerazione movej MOVETO.
+
+
+======================================================================
+25. ROTAZIONE TCP MOVERX
+======================================================================
+
+Parametro:
+    manual.rotate_tcp.linear_speed_mm_s
+Tipo:
+    double
+Default:
+    20
+Descrizione:
+    Velocità lineare usata nella rotazione TCP.
+
+Parametro:
+    manual.rotate_tcp.angular_speed_deg_s
+Tipo:
+    double
+Default:
+    5
+Descrizione:
+    Velocità angolare usata nella rotazione TCP.
+
+Parametro:
+    manual.rotate_tcp.linear_acceleration_mm_s2
+Tipo:
+    double
+Default:
+    80
+Descrizione:
+    Accelerazione lineare.
+
+Parametro:
+    manual.rotate_tcp.angular_acceleration_deg_s2
+Tipo:
+    double
+Default:
+    20
+Descrizione:
+    Accelerazione angolare.
+
+Parametro:
+    manual.rotate_tcp.radius_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Raggio movimento.
+
+Parametro:
+    manual.rotate_tcp.reference
+Tipo:
+    string
+Default:
+    DR_BASE
+Descrizione:
+    Frame di riferimento.
+
+Parametro:
+    manual.rotate_tcp.motion_mode
+Tipo:
+    enum
+Default:
+    absolute
+Descrizione:
+    Modalità movimento.
+Valori:
+    absolute
+    relative
+
+
+======================================================================
+26. CENTER TORCH
+======================================================================
+
+Parametro:
+    manual.center_torch.sx_j6_deg
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Valore J6 per centraggio torcia lato SX.
+
+Parametro:
+    manual.center_torch.dx_j6_deg
+Tipo:
+    double
+Default:
+    -180
+Descrizione:
+    Valore J6 per centraggio torcia lato DX.
+
+Parametro:
+    manual.center_torch.speed_deg_s
+Tipo:
+    double
+Default:
+    600
+Descrizione:
+    Velocità centraggio.
+
+Parametro:
+    manual.center_torch.acceleration_deg_s2
+Tipo:
+    double
+Default:
+    300
+Descrizione:
+    Accelerazione centraggio.
+
+Parametro:
+    manual.center_torch.radius_deg
+Tipo:
+    double
+Default:
+    1
+Descrizione:
+    Raggio centraggio.
+
+
+======================================================================
+27. HOME POSITION
+======================================================================
+
+Home piano
+----------
+
+Parametro:
+    machine.home.plane.j1_deg
+Default:
+    -90.0
+
+Parametro:
+    machine.home.plane.j2_deg
+Default:
+    -21.33
+
+Parametro:
+    machine.home.plane.j3_deg
+Default:
+    -125.03
+
+Parametro:
+    machine.home.plane.j4_deg
+Default:
+    -73.44
+
+Parametro:
+    machine.home.plane.j5_deg
+Default:
+    -63.05
+
+Parametro:
+    machine.home.plane.j6_deg
+Default:
+    -34.06
+
+Home semplice
+-------------
+
+Parametro:
+    machine.home.simple.j1_deg
+Default:
+    86.85
+
+Parametro:
+    machine.home.simple.j2_deg
+Default:
+    28.18
+
+Parametro:
+    machine.home.simple.j3_deg
+Default:
+    83.0
+
+Parametro:
+    machine.home.simple.j4_deg
+Default:
+    182.0
+
+Parametro:
+    machine.home.simple.j5_deg
+Default:
+    -71.3
+
+Parametro:
+    machine.home.simple.j6_deg
+Default:
+    -173.4
+
+Home doppia SX
+--------------
+
+Parametro:
+    machine.home.double_sx.j1_deg
+Default:
+    90.0
+
+Parametro:
+    machine.home.double_sx.j2_deg
+Default:
+    20.0
+
+Parametro:
+    machine.home.double_sx.j3_deg
+Default:
+    70.0
+
+Parametro:
+    machine.home.double_sx.j4_deg
+Default:
+    0.0
+
+Parametro:
+    machine.home.double_sx.j5_deg
+Default:
+    110.0
+
+Parametro:
+    machine.home.double_sx.j6_deg
+Default:
+    0.0
+
+Home doppia DX
+--------------
+
+Parametro:
+    machine.home.double_dx.j1_deg
+Default:
+    -90.0
+
+Parametro:
+    machine.home.double_dx.j2_deg
+Default:
+    -20.0
+
+Parametro:
+    machine.home.double_dx.j3_deg
+Default:
+    -70.0
+
+Parametro:
+    machine.home.double_dx.j4_deg
+Default:
+    0.0
+
+Parametro:
+    machine.home.double_dx.j5_deg
+Default:
+    -110.0
+
+Parametro:
+    machine.home.double_dx.j6_deg
+Default:
+    -180.0
+
+Cinematica home
+---------------
+
+Parametro:
+    machine.home.speed_deg_s
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Velocità movimenti HOME.
+
+Parametro:
+    machine.home.acceleration_deg_s2
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Accelerazione movimenti HOME.
+
+
+======================================================================
+28. POSE MANUTENZIONE
+======================================================================
+
+Manutenzione DX
+---------------
+
+Parametro:
+    machine.maintenance.dx.j1_deg
+Default:
+    -96.6
+
+Parametro:
+    machine.maintenance.dx.j2_deg
+Default:
+    -19.8
+
+Parametro:
+    machine.maintenance.dx.j3_deg
+Default:
+    -81.3
+
+Parametro:
+    machine.maintenance.dx.j4_deg
+Default:
+    -80.9
+
+Parametro:
+    machine.maintenance.dx.j5_deg
+Default:
+    -81.9
+
+Parametro:
+    machine.maintenance.dx.j6_deg
+Default:
+    -76.4
+
+Manutenzione SX
+---------------
+
+Parametro:
+    machine.maintenance.sx.j1_deg
+Default:
+    92.2
+
+Parametro:
+    machine.maintenance.sx.j2_deg
+Default:
+    16.0
+
+Parametro:
+    machine.maintenance.sx.j3_deg
+Default:
+    82.1
+
+Parametro:
+    machine.maintenance.sx.j4_deg
+Default:
+    79.7
+
+Parametro:
+    machine.maintenance.sx.j5_deg
+Default:
+    88.2
+
+Parametro:
+    machine.maintenance.sx.j6_deg
+Default:
+    -97.4
+
+Cinematica manutenzione
+-----------------------
+
+Parametro:
+    machine.maintenance.speed_deg_s
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Velocità pose manutenzione.
+
+Parametro:
+    machine.maintenance.acceleration_deg_s2
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Accelerazione pose manutenzione.
+
+
+======================================================================
+29. POSE TRASPORTO
+======================================================================
+
+Trasporto DX
+------------
+
+Parametro:
+    machine.transport.dx.j1_deg
+Default:
+    -93.1
+
+Parametro:
+    machine.transport.dx.j2_deg
+Default:
+    23.0
+
+Parametro:
+    machine.transport.dx.j3_deg
+Default:
+    -96.3
+
+Parametro:
+    machine.transport.dx.j4_deg
+Default:
+    2.3
+
+Parametro:
+    machine.transport.dx.j5_deg
+Default:
+    -106.6
+
+Parametro:
+    machine.transport.dx.j6_deg
+Default:
+    -178.6
+
+Trasporto SX
+------------
+
+Parametro:
+    machine.transport.sx.j1_deg
+Default:
+    81.4
+
+Parametro:
+    machine.transport.sx.j2_deg
+Default:
+    -19.8
+
+Parametro:
+    machine.transport.sx.j3_deg
+Default:
+    98.3
+
+Parametro:
+    machine.transport.sx.j4_deg
+Default:
+    0.7
+
+Parametro:
+    machine.transport.sx.j5_deg
+Default:
+    101.0
+
+Parametro:
+    machine.transport.sx.j6_deg
+Default:
+    -7.0
+
+Cinematica trasporto
+--------------------
+
+Parametro:
+    machine.transport.speed_deg_s
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Velocità pose trasporto.
+
+Parametro:
+    machine.transport.acceleration_deg_s2
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Accelerazione pose trasporto.
+
+
+======================================================================
+30. MODALITA' PULIZIA
+======================================================================
+
+Parametro:
+    machine.clean.use_transport_pose
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Mantiene il comportamento attuale usando la posa trasporto.
+
+Parametro:
+    machine.clean.dx_pose_override
+Tipo:
+    array/null
+Default:
+    null
+Descrizione:
+    Eventuale posa dedicata pulizia DX.
+
+Parametro:
+    machine.clean.sx_pose_override
+Tipo:
+    array/null
+Default:
+    null
+Descrizione:
+    Eventuale posa dedicata pulizia SX.
+
+
+======================================================================
+31. CAMBIO BRACCIO DX -> SX
+======================================================================
+
+Parametro:
+    machine.arm_switch.dx_to_sx.speed_deg_s
+Tipo:
+    double
+Default:
+    120
+Descrizione:
+    Velocità cambio lato DX -> SX.
+
+Parametro:
+    machine.arm_switch.dx_to_sx.acceleration_deg_s2
+Tipo:
+    double
+Default:
+    100
+Descrizione:
+    Accelerazione cambio lato DX -> SX.
+
+Parametro:
+    machine.arm_switch.dx_to_sx.radius_deg
+Tipo:
+    double
+Default:
+    50
+Descrizione:
+    Raggio blending cambio lato DX -> SX.
+
+Parametro:
+    machine.arm_switch.dx_to_sx.waypoints
+Tipo:
+    array<posj>
+Default:
+    [
+      [-90.0, -90, 0, 0.0, 135, 0.0],
+      [-90.0, -90, 80, 0.0, 115, -90],
+      [-90.0, -80, 120.0, 0.0, 90, -90],
+      [-90.0, -60, 120.0, 0.0, 90, -90],
+      [20.0, -40, 120.0, 0.0, 90, -90],
+      [90.0, -40, 120.0, 0.0, 90, -90],
+      [90.0, 20.0, 70.0, 0.0, 110.0, 0.0]
+    ]
+Descrizione:
+    Sequenza completa waypoint articolari DX -> SX.
+
+
+======================================================================
+32. CAMBIO BRACCIO SX -> DX
+======================================================================
+
+Parametro:
+    machine.arm_switch.sx_to_dx.speed_deg_s
+Tipo:
+    double
+Default:
+    120
+Descrizione:
+    Velocità cambio lato SX -> DX.
+
+Parametro:
+    machine.arm_switch.sx_to_dx.acceleration_deg_s2
+Tipo:
+    double
+Default:
+    100
+Descrizione:
+    Accelerazione cambio lato SX -> DX.
+
+Parametro:
+    machine.arm_switch.sx_to_dx.radius_deg
+Tipo:
+    double
+Default:
+    50
+Descrizione:
+    Raggio blending cambio lato SX -> DX.
+
+Parametro:
+    machine.arm_switch.sx_to_dx.waypoints
+Tipo:
+    array<posj>
+Default:
+    [
+      [90, 90, 0, 0, -135, 0],
+      [90, 90, -80, 0, -115, 90],
+      [90, 80, -120, 0, -90, 90],
+      [90, 60, -120, 0, -90, 90],
+      [-20, 40, -120, 0, -90, 90],
+      [-90, 40, -120, 0, -90, 90],
+      [-90, -20, -70, 0, -110, -180]
+    ]
+Descrizione:
+    Sequenza completa waypoint articolari SX -> DX.
+
+
+======================================================================
+33. RILEVAMENTO LATO BRACCIO
+======================================================================
+
+Parametro:
+    machine.arm_detection.axis_index
+Tipo:
+    int
+Default:
+    1
+Descrizione:
+    Asse articolare usato per determinare il lato, concettualmente J1.
+
+Parametro:
+    machine.arm_detection.center_threshold_deg
+Tipo:
+    double
+Default:
+    0.0
+Descrizione:
+    Soglia centrale per distinguere SX e DX.
+
+Parametro:
+    machine.arm_detection.dx_when_negative
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    J1 negativo identifica DX.
+
+Parametro:
+    machine.arm_detection.sx_when_positive
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    J1 positivo identifica SX.
+
+
+======================================================================
+34. NETWORK FASTAPI
+======================================================================
+
+Parametro:
+    network.fastapi.host
+Tipo:
+    string
+Default:
+    192.168.10.13
+Descrizione:
+    IP/host FastAPI.
+
+Parametro:
+    network.fastapi.port
+Tipo:
+    int
+Default:
+    8818
+Descrizione:
+    Porta FastAPI.
+
+Parametro:
+    network.fastapi.timeout_s
+Tipo:
+    double
+Default:
+    20
+Descrizione:
+    Timeout HTTP FastAPI.
+
+Parametro:
+    network.fastapi.polygon_endpoint
+Tipo:
+    string
+Default:
+    /interpola
+Descrizione:
+    Endpoint interpolazione poligono.
+
+Parametro:
+    network.fastapi.cloud_endpoint
+Tipo:
+    string
+Default:
+    /interpola_nuvola
+Descrizione:
+    Endpoint interpolazione nuvola.
+
+
+======================================================================
+35. NETWORK ROBOT / TABLET
+======================================================================
+
+Parametro:
+    network.robot_server.listen_port
+Tipo:
+    int
+Default:
+    20002
+Descrizione:
+    Porta server socket robot.
+
+Parametro:
+    network.robot_server.status_interval_s
+Tipo:
+    double
+Default:
+    0.25
+Descrizione:
+    Frequenza invio stato robot.
+
+Parametro:
+    network.robot_server.thread_read_timeout_s
+Tipo:
+    double
+Default:
+    5
+Descrizione:
+    Timeout lettura socket del thread.
+
+Parametro:
+    network.robot_server.weld_poll_timeout_s
+Tipo:
+    double
+Default:
+    0.8
+Descrizione:
+    Timeout lettura socket durante saldatura.
+
+Parametro:
+    network.robot_server.log_chunk_size
+Tipo:
+    int
+Default:
+    500
+Descrizione:
+    Dimensione massima dei blocchi di log.
+
+
+======================================================================
+36. MOVESX RESIDUO
+======================================================================
+
+Parametro:
+    movesx.fallback_linear_speed_mm_s
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Velocità lineare fallback.
+
+Parametro:
+    movesx.fallback_linear_acceleration_mm_s2
+Tipo:
+    double
+Default:
+    100
+Descrizione:
+    Accelerazione lineare fallback.
+
+Parametro:
+    movesx.angular_speed_deg_s
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Velocità angolare movesx.
+
+Parametro:
+    movesx.angular_acceleration_deg_s2
+Tipo:
+    double
+Default:
+    50
+Descrizione:
+    Accelerazione angolare movesx.
+
+Parametro:
+    movesx.velocity_option
+Tipo:
+    string
+Default:
+    DR_MVS_VEL_CONST
+Descrizione:
+    Opzione velocità movesx.
+
+Parametro:
+    movesx.wait_completion
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Attende il completamento della sequenza.
+
+Parametro:
+    movesx.retry_enabled
+Tipo:
+    bool
+Default:
+    false
+Descrizione:
+    Abilita eventuali retry. Default attuale: nessun retry.
+
+
+======================================================================
+37. MOVEL POLILINEA
+======================================================================
+
+Parametro:
+    movel_polyline.fallback_speed_mm_s
+Tipo:
+    double
+Default:
+    10
+Descrizione:
+    Velocità fallback.
+
+Parametro:
+    movel_polyline.fallback_acceleration_mm_s2
+Tipo:
+    double
+Default:
+    100
+Descrizione:
+    Accelerazione fallback.
+
+Parametro:
+    movel_polyline.intermediate_radius_mm
+Tipo:
+    double
+Default:
+    1
+Descrizione:
+    Raggio punti intermedi.
+
+Parametro:
+    movel_polyline.last_point_radius_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Raggio ultimo punto.
+
+Parametro:
+    movel_polyline.wait_before_sequence
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Attende prima della sequenza.
+
+Parametro:
+    movel_polyline.wait_after_sequence
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Attende dopo la sequenza.
+
+
+======================================================================
+38. PRECISIONE OUTPUT POSE
+======================================================================
+
+Parametro:
+    precision.position_decimals
+Tipo:
+    int
+Default:
+    1
+Descrizione:
+    Numero di decimali XYZ nella creazione posx.
+
+Parametro:
+    precision.orientation_decimals
+Tipo:
+    int
+Default:
+    1
+Descrizione:
+    Numero di decimali A/B/C nella creazione posx.
+
+Parametro:
+    precision.path_step_decimals
+Tipo:
+    int
+Default:
+    1
+Descrizione:
+    Numero di decimali usati sul passo cordoni.
+
+
+======================================================================
+39. FRAME
+======================================================================
+
+Parametro:
+    frame.width_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Larghezza frame.
+
+Parametro:
+    frame.height_mm
+Tipo:
+    double
+Default:
+    0
+Descrizione:
+    Altezza frame.
+
+
+======================================================================
+40. TOOL E TCP
+======================================================================
+
+Parametro:
+    machine.tcp_name
+Tipo:
+    string
+Default:
+    LaserTool
+Descrizione:
+    Nome TCP configurato sul robot.
+
+Parametro:
+    machine.tool_shape_name
+Tipo:
+    string
+Default:
+    Tool Shape
+Descrizione:
+    Nome tool shape configurato sul robot.
+
+
+======================================================================
+41. LOGGING E DIAGNOSTICA
+======================================================================
+
+Parametro:
+    debug.enabled
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Abilita diagnostica generale.
+
+Parametro:
+    debug.log_received_messages
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Log messaggi ricevuti.
+
+Parametro:
+    debug.log_fastapi_payload
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Log payload inviati a FastAPI.
+
+Parametro:
+    debug.log_weld_points
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Log punti cordoni.
+
+Parametro:
+    debug.log_motion_sequences
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Log sequenze di movimento.
+
+Parametro:
+    debug.log_timing
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Log tempi esecuzione.
+
+Parametro:
+    debug.log_chunk_size
+Tipo:
+    int
+Default:
+    500
+Descrizione:
+    Dimensione chunk log.
+
+Parametro:
+    debug.interpolation_hull_enabled
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Diagnostica hull interpolazione.
+
+
+======================================================================
+42. PAUSA E RIPRESA
+======================================================================
+
+Parametro:
+    pause.back_weld_count_default
+Tipo:
+    int
+Default:
+    0
+Descrizione:
+    Numero cordoni da rieseguire alla ripresa.
+
+Parametro:
+    pause.goto_safe_position
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Vai in safe durante pausa.
+
+Parametro:
+    pause.gas_off
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Spegne gas in pausa.
+
+Parametro:
+    pause.mass_off
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Spegne massa in pausa.
+
+Parametro:
+    resume.goto_safe_before_restart
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Richiama safe prima della ripartenza.
+
+
+======================================================================
+43. PARAMETRI LEGACY DA NON ESPORRE CON I VECCHI NOMI
+======================================================================
+
+Vecchio:
+    raggio
+Sostituire con:
+    motion.radius.travel_mm
+
+Vecchio:
+    raggiouscita
+Sostituire con:
+    motion.radius.exit_mm
+
+Vecchio:
+    raggiopiccolo
+Sostituire con:
+    motion.radius.weld_mm
+
+Vecchio:
+    uscitaxd
+Sostituire con:
+    geometry.*.*.return.*
+
+Vecchio:
+    uscitaxu
+Sostituire con:
+    geometry.*.*.exit.*
+
+Motivo:
+    I nuovi nomi sono univoci, leggibili e spiegano esattamente cosa fanno.
+
+
+======================================================================
+44. PARAMETRI AVANZATI CONSIGLIATI PER NON MODIFICARE PIU' IL ROBOT
+======================================================================
+
+Parametro:
+    motion.reference_frame
+Tipo:
+    string
+Default:
+    DR_BASE
+Descrizione:
+    Frame generale dei movimenti cartesiani.
+
+Parametro:
+    motion.default_relative_mode
+Tipo:
+    string
+Default:
+    DR_MV_MOD_REL
+Descrizione:
+    Modalità predefinita movimenti relativi.
+
+Parametro:
+    motion.default_absolute_mode
+Tipo:
+    string
+Default:
+    DR_MV_MOD_ABS
+Descrizione:
+    Modalità predefinita movimenti assoluti.
+
+Parametro:
+    motion.pre_start.enabled
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Abilita/disabilita completamente la fase pre-start.
+
+Parametro:
+    motion.pre_exit.enabled
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Abilita/disabilita completamente la fase pre-exit.
+
+Parametro:
+    motion.exit.enabled
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Abilita/disabilita completamente la fase exit.
+
+Parametro:
+    motion.return.enabled
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Abilita/disabilita completamente la fase return.
+
+Parametro:
+    motion.safe_roundtrip.enabled
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Abilita il passaggio in safe tra cordoni.
+
+Parametro:
+    weld.laser_enabled
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Consente una lavorazione senza attivare il laser.
+
+Parametro:
+    weld.gas_enabled
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Consente di disabilitare il gas.
+
+Parametro:
+    weld.mass_enabled
+Tipo:
+    bool
+Default:
+    true
+Descrizione:
+    Consente di disabilitare massa/filo.
+
+Parametro:
+    weld.dry_run
+Tipo:
+    bool
+Default:
+    false
+Descrizione:
+    Simulazione completa senza attivare le uscite di processo.
+
+Parametro:
+    weld.max_weld_count
+Tipo:
+    int
+Default:
+    0
+Descrizione:
+    Numero massimo di cordoni eseguibili. 0 = nessun limite.
+
+Parametro:
+    safety.max_linear_speed_mm_s
+Tipo:
+    double/null
+Default:
+    null
+Descrizione:
+    Limite massimo configurabile alla velocità lineare.
+
+Parametro:
+    safety.max_joint_speed_deg_s
+Tipo:
+    double/null
+Default:
+    null
+Descrizione:
+    Limite massimo velocità articolare.
+
+Parametro:
+    safety.max_weld_speed_mm_s
+Tipo:
+    double/null
+Default:
+    null
+Descrizione:
+    Limite massimo velocità saldatura.
+
+Parametro:
+    safety.max_offset_mm
+Tipo:
+    double/null
+Default:
+    null
+Descrizione:
+    Limite massimo assoluto agli offset geometrici configurabili.
+
+
+======================================================================
+45. SEZIONI CONSIGLIATE NELL'APP FLUTTER
+======================================================================
+
+1. Lavorazione
+2. Geometria percorso
+3. Cordoni
+4. Strati
+5. Interpolazione
+6. Polilinea
+7. Saldatura
+8. Timing
+9. I/O digitali
+10. Movimenti generali
+11. Geometria lineare piano
+12. Geometria lineare semplice
+13. Geometria lineare doppia
+14. Geometria polilinea piano
+15. Geometria polilinea semplice
+16. Geometria polilinea doppia
+17. Acquisizione punti
+18. Safe position
+19. Home
+20. Manutenzione
+21. Trasporto
+22. Cambio braccio
+23. Movimento manuale
+24. Rete FastAPI
+25. Rete Robot
+26. Precisione
+27. Debug
+28. Sicurezza avanzata
+
+
+======================================================================
+ESEMPIO PRATICO
+======================================================================
+
+Esigenza:
+    "Quando prendo il punto mi distacco di 10 mm.
+     Quando finisco il cordone salgo di 5 mm.
+     Voglio raggio 2 mm."
+
+Per controrotaia semplice polilinea:
+
+    capture.simple.retreat_dy_mm = 10
+
+    geometry.polyline.simple.pre_exit.dz_mm = 5
+
+    motion.polyline.pre_exit.radius_mm = 2
+
+Nessuna modifica al file robot.
+Tutto gestito dall'app Flutter.
+
+
+======================================================================
+NOTA FINALE
+======================================================================
+
+La configurazione ideale dovrebbe funzionare così:
+
+    DEFAULT ROBOT
+        +
+    PROFILO MACCHINA
+        +
+    PROFILO LAVORAZIONE
+        +
+    OVERRIDE DELLA SINGOLA ESECUZIONE
+
+Il risultato finale è la configurazione effettiva inviata dall'app Flutter.
+
+In questo modo:
+- i default restano quelli attuali;
+- ogni parametro può essere cambiato dall'app;
+- si possono creare preset diversi;
+- si può differenziare piano / semplice / doppia;
+- si può differenziare lineare / polilinea;
+- non è necessario modificare il file robot per cambiare offset, velocità, raggi, attese o pose.
