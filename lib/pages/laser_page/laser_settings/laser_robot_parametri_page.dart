@@ -377,7 +377,22 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
       return false;
     }
 
-    return controller.text != _displayValue(parametro.valore);
+    return widget.laserPageController
+            .isRobotParametroDirty(parametro.parametro) ||
+        controller.text != _displayValue(parametro.valore);
+  }
+
+  void _onParametroChanged(LaserRobotParametro parametro, String rawValue) {
+    if (!parametro.modificabile) return;
+    try {
+      final value = _parseValueForParametro(parametro, rawValue);
+      if (_isValueAllowed(value, parametro.valoriAmmessi)) {
+        widget.laserPageController
+            .updateRobotParametroValue(parametro.parametro, value);
+      }
+    } catch (_) {
+      // Durante la digitazione il valore può essere temporaneamente incompleto.
+    }
   }
 
   Future<void> _saveParameters() async {
@@ -423,10 +438,12 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
         "seriale_start": widget.laserPageController.settings.serialeRobot,
         "seriale_robot": widget.laserPageController.settings.serialeRobot,
         "ip_robot": widget.laserPageController.settings.ipRobot,
-        "ip_server": widget.laserPageController.settings.ipServer,
-        "pin_gas": widget.laserPageController.settings.pinGas,
-        "pin_laser": widget.laserPageController.settings.pinLaser,
-        "pin_massa": widget.laserPageController.settings.pinMassa,
+        "ip_server": widget.laserPageController.robotParametroValue(
+            'network.fastapi.host',
+            fallback: widget.laserPageController.settings.ipServer),
+        "pin_gas": widget.laserPageController.effectivePinGas,
+        "pin_laser": widget.laserPageController.effectivePinLaser,
+        "pin_massa": widget.laserPageController.effectivePinMassa,
         "allontanamento_x":
             widget.laserPageController.settings.scostamentoX.toString(),
         "allontanamento_y":
@@ -566,6 +583,7 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
                     ? (value) {
                         if (value != null) {
                           controller.text = value;
+                          _onParametroChanged(parametro, value);
                         }
                       }
                     : null,
@@ -586,6 +604,7 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
                     : TextInputType.text,
                 minLines: isJson ? 3 : 1,
                 maxLines: isJson ? 6 : 1,
+                onChanged: (value) => _onParametroChanged(parametro, value),
               ),
           ],
         ),

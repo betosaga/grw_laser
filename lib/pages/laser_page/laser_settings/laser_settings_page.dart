@@ -85,6 +85,7 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
   //
   //
   bool isLoading = false;
+  bool _syncingSharedParameterFields = false;
   //
   //
   //
@@ -111,13 +112,7 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
     serialeRobotEditingController.text =
         widget.laserPageController.settings.serialeRobot;
     ipRobotEditingController.text = widget.laserPageController.settings.ipRobot;
-    ipServerEditingController.text =
-        widget.laserPageController.settings.ipServer;
-    pinGasEditingController.text = widget.laserPageController.settings.pinGas;
-    pinLaserEditingController.text =
-        widget.laserPageController.settings.pinLaser;
-    pinMassaEditingController.text =
-        widget.laserPageController.settings.pinMassa;
+    _syncSharedParameterFieldsFromController();
     scostamentoXEditingController.text =
         widget.laserPageController.settings.scostamentoX.toString();
     scostamentoYEditingController.text =
@@ -125,7 +120,56 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
     scostamentoZEditingController.text =
         widget.laserPageController.settings.scostamentoZ.toString();
     _setLimitiRowsFromSettings(widget.laserPageController.settings);
+    _bindSharedParameterFields();
     super.initState();
+  }
+
+  void _syncSharedParameterFieldsFromController() {
+    _syncingSharedParameterFields = true;
+    try {
+      ipServerEditingController.text = widget.laserPageController
+          .robotParametroValue('network.fastapi.host',
+              fallback: widget.laserPageController.settings.ipServer)
+          .toString();
+      pinGasEditingController.text = widget.laserPageController
+          .robotParametroValue('io.gas_output_pin',
+              fallback: widget.laserPageController.settings.pinGas)
+          .toString();
+      pinLaserEditingController.text = widget.laserPageController
+          .robotParametroValue('io.laser_output_pin',
+              fallback: widget.laserPageController.settings.pinLaser)
+          .toString();
+      pinMassaEditingController.text = widget.laserPageController
+          .robotParametroValue('io.mass_output_pin',
+              fallback: widget.laserPageController.settings.pinMassa)
+          .toString();
+    } finally {
+      _syncingSharedParameterFields = false;
+    }
+  }
+
+  void _bindSharedParameterFields() {
+    ipServerEditingController.addListener(() {
+      if (_syncingSharedParameterFields) return;
+      final value = ipServerEditingController.text.trim();
+      if (value.isNotEmpty) {
+        widget.laserPageController
+            .updateRobotParametroValue('network.fastapi.host', value);
+      }
+    });
+    void bindPin(TextEditingController controller, String key) {
+      controller.addListener(() {
+        if (_syncingSharedParameterFields) return;
+        final value = int.tryParse(controller.text.trim());
+        if (value != null) {
+          widget.laserPageController.updateRobotParametroValue(key, value);
+        }
+      });
+    }
+
+    bindPin(pinGasEditingController, 'io.gas_output_pin');
+    bindPin(pinLaserEditingController, 'io.laser_output_pin');
+    bindPin(pinMassaEditingController, 'io.mass_output_pin');
   }
 
   @override
@@ -261,13 +305,15 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
     return text.trim().replaceAll(',', '.');
   }
 
-  void _openAllParametersPage() {
-    Pager.push(
+  Future<void> _openAllParametersPage() async {
+    await Pager.push(
       context: context,
       page: LaserRobotParametriPage(
         laserPageController: widget.laserPageController,
       ),
     );
+    if (!mounted) return;
+    setState(_syncSharedParameterFieldsFromController);
   }
 
   @override
@@ -669,10 +715,26 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
   void updateFields({required LaserRobotSettings settings}) {
     serialeRobotEditingController.text = settings.serialeRobot;
     ipRobotEditingController.text = settings.ipRobot;
-    ipServerEditingController.text = settings.ipServer;
-    pinGasEditingController.text = settings.pinGas;
-    pinLaserEditingController.text = settings.pinLaser;
-    pinMassaEditingController.text = settings.pinMassa;
+    dynamic parameterValue(String key, dynamic fallback) {
+      for (final parametro in settings.parametri) {
+        if (parametro.parametro.trim() == key) return parametro.valore;
+      }
+      return fallback;
+    }
+
+    _syncingSharedParameterFields = true;
+    try {
+      ipServerEditingController.text =
+          parameterValue('network.fastapi.host', settings.ipServer).toString();
+      pinGasEditingController.text =
+          parameterValue('io.gas_output_pin', settings.pinGas).toString();
+      pinLaserEditingController.text =
+          parameterValue('io.laser_output_pin', settings.pinLaser).toString();
+      pinMassaEditingController.text =
+          parameterValue('io.mass_output_pin', settings.pinMassa).toString();
+    } finally {
+      _syncingSharedParameterFields = false;
+    }
     scostamentoXEditingController.text = settings.scostamentoX.toString();
     scostamentoYEditingController.text = settings.scostamentoY.toString();
     scostamentoZEditingController.text = settings.scostamentoZ.toString();
@@ -692,9 +754,10 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
 
       final currentSettings = robotLaserSettingsFromJson(response.body);
 
-      writeDataToDisk(writingSettings: currentSettings);
-      updateFields(settings: currentSettings);
-      widget.laserPageController.setRobotSettings(newSettings: currentSettings);
+      await widget.laserPageController
+          .setRobotSettings(newSettings: currentSettings);
+      writeDataToDisk(writingSettings: widget.laserPageController.settings);
+      updateFields(settings: widget.laserPageController.settings);
     } catch (e) {
       if (e is ResponseError) {
         if (e.message.trim() != "") {
@@ -796,6 +859,11 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
             _normalizeNumericInput(scostamentoZEditingController.text),
         "limiti": jsonEncode(limitiPayload),
       };
+      final sharedParameters =
+          widget.laserPageController.dirtyRobotParametriPayload();
+      if (sharedParameters.isNotEmpty) {
+        payload['parametri'] = jsonEncode(sharedParameters);
+      }
 
       final response = await Api.request(payload, verbose: false);
 
@@ -803,11 +871,10 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
       //
       final currentSettings = robotLaserSettingsFromJson(response.body);
       //
-      writeDataToDisk(writingSettings: currentSettings);
-      updateFields(settings: currentSettings);
-      //
-      //
-      widget.laserPageController.setRobotSettings(newSettings: currentSettings);
+      await widget.laserPageController
+          .setRobotSettings(newSettings: currentSettings);
+      writeDataToDisk(writingSettings: widget.laserPageController.settings);
+      updateFields(settings: widget.laserPageController.settings);
       //
       //
     } catch (e) {

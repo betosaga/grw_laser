@@ -4,7 +4,9 @@ class LaserRobotParametro {
   final String parametro;
   final String tipo;
   final bool nullable;
-  final dynamic valore;
+
+  /// Valore effettivo condiviso tra le viste e i payload del robot.
+  dynamic valore;
   final dynamic valoreDefault;
   final dynamic valoriAmmessi;
   final String? categoria;
@@ -13,7 +15,7 @@ class LaserRobotParametro {
   final bool modificabile;
   final bool personalizzato;
 
-  const LaserRobotParametro({
+  LaserRobotParametro({
     required this.parametro,
     required this.tipo,
     required this.nullable,
@@ -78,8 +80,9 @@ class LaserRobotParametro {
 
   String get displayDefaultValue => _valueToDisplay(valoreDefault);
 
-  String get categoryLabel =>
-      (categoria == null || categoria!.trim().isEmpty) ? 'Generale' : categoria!.trim();
+  String get categoryLabel => (categoria == null || categoria!.trim().isEmpty)
+      ? 'Generale'
+      : categoria!.trim();
 
   String get allowedValuesLabel {
     final allowed = valoriAmmessi;

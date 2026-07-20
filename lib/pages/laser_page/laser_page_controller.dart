@@ -21,6 +21,7 @@ import 'package:grw_laser/pages/laser_page/laser_points_history/laser_points_his
 import 'package:grw_laser/pages/laser_page/laser_settings/components/ask_points_label_dialog.dart';
 import 'package:grw_laser/pages/laser_page/laser_settings/laser_settings_page.dart';
 import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_limite.dart';
+import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_parametro.dart';
 import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_settings.dart';
 import 'package:grw_laser/pages/laser_page/laser_simulation_page.dart';
 import 'package:grw_laser/pages/laser_page/model/safe_position.dart';
@@ -88,10 +89,22 @@ class LaserPageController {
   LaserPageHubController hubController;
   LaserRobotSettings settings;
   String tipoControrotaia;
+  final Set<String> _dirtyRobotParameterKeys = <String>{};
+  bool _syncingLegacyParameterControls = false;
+  bool _legacyParameterBindingsInitialized = false;
   LaserPageController(
       {required this.hubController,
       required this.settings,
-      this.tipoControrotaia = 'controrotaiasemplice'});
+      this.tipoControrotaia = 'controrotaiasemplice'}) {
+    for (final parametro in settings.parametri) {
+      if (parametro.parametro.trim() == 'job.rail_type' &&
+          parametro.valore != null) {
+        tipoControrotaia =
+            _normalizeControrotaiaValue(parametro.valore.toString());
+        break;
+      }
+    }
+  }
   //
   //
   // * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - *
@@ -751,10 +764,57 @@ class LaserPageController {
   }
 
   String get serverBaseUrl {
-    final host = settings.ipServer.contains(':')
-        ? settings.ipServer.split(':').first
-        : settings.ipServer;
+    final configuredHost =
+        robotParametroValue('network.fastapi.host', fallback: settings.ipServer)
+            .toString();
+    final host = configuredHost.contains(':')
+        ? configuredHost.split(':').first
+        : configuredHost;
     return 'http://$host';
+  }
+
+  String get effectivePinGas =>
+      robotParametroValue('io.gas_output_pin', fallback: settings.pinGas)
+          .toString();
+  String get effectivePinLaser =>
+      robotParametroValue('io.laser_output_pin', fallback: settings.pinLaser)
+          .toString();
+  String get effectivePinMassa =>
+      robotParametroValue('io.mass_output_pin', fallback: settings.pinMassa)
+          .toString();
+
+  String _fastApiUrl({required bool cloud}) {
+    var host = robotParametroValue(
+      'network.fastapi.host',
+      fallback: settings.ipServer,
+    ).toString().trim();
+    var scheme = 'http';
+    if (host.startsWith('http://') || host.startsWith('https://')) {
+      final parsed = Uri.tryParse(host);
+      if (parsed != null && parsed.host.isNotEmpty) {
+        scheme = parsed.scheme;
+        host = parsed.hasPort ? '${parsed.host}:${parsed.port}' : parsed.host;
+      }
+    }
+    host = host.replaceAll(RegExp(r'/+$'), '');
+
+    final configuredPort = robotParametroValue('network.fastapi.port');
+    final port = configuredPort is num
+        ? configuredPort.toInt()
+        : int.tryParse(configuredPort?.toString() ?? '');
+    if (port != null && port > 0 && !RegExp(r':\d+$').hasMatch(host)) {
+      host = '$host:$port';
+    }
+
+    final endpointKey = cloud
+        ? 'network.fastapi.cloud_endpoint'
+        : 'network.fastapi.polygon_endpoint';
+    final fallbackEndpoint = cloud ? '/interpola_nuvola' : '/interpola';
+    var endpoint = robotParametroValue(endpointKey, fallback: fallbackEndpoint)
+        .toString()
+        .trim();
+    if (!endpoint.startsWith('/')) endpoint = '/$endpoint';
+    return '$scheme://$host$endpoint';
   }
 
   void openLastInterpolaResponseDebug() {
@@ -769,6 +829,38 @@ class LaserPageController {
 
   void notifyPointsOrderChanged() {
     pointsOrderVersion.value = pointsOrderVersion.value + 1;
+    _syncPointParametersFromLaserPage();
+  }
+
+  void _syncPointParametersFromLaserPage() {
+    if (_syncingLegacyParameterControls) return;
+    final orderedPoints = points.points
+        .where((point) => point.order != null)
+        .toList()
+      ..sort((a, b) => a.order!.compareTo(b.order!));
+    final basePoints = orderedPoints
+        .map((point) =>
+            [point.x, point.y, point.z, point.j1, point.j2, point.j3])
+        .toList();
+    final order = List<int>.generate(basePoints.length, (index) => index);
+    final baseIndices = [
+      for (var i = 0; i < orderedPoints.length; i++)
+        if (orderedPoints[i].isBase) i
+    ];
+    final limitIndices = [
+      for (var i = 0; i < orderedPoints.length; i++)
+        if (orderedPoints[i].isLimite) i
+    ];
+    updateRobotParametroValue('path.base_points', basePoints,
+        syncLegacyControls: false);
+    updateRobotParametroValue('path.point_order', order,
+        syncLegacyControls: false);
+    updateRobotParametroValue('path.perimeter_order', order,
+        syncLegacyControls: false);
+    updateRobotParametroValue('path.base_curve_indices', baseIndices,
+        syncLegacyControls: false);
+    updateRobotParametroValue('path.limit_curve_indices', limitIndices,
+        syncLegacyControls: false);
   }
 
   void setCanGeneratePoints(bool value) {
@@ -1006,6 +1098,9 @@ class LaserPageController {
       velocitaAllontanamentoController.text = "$defaultVelocitaAllontanamento";
       alternata = false;
 
+      _initializeLegacyParameterBindings();
+      _syncAllLegacyParameterControls();
+
       buildReconnectionTimer();
     });
   }
@@ -1093,6 +1188,404 @@ class LaserPageController {
       payload[key] = parametro.valore;
     }
     return payload;
+  }
+
+  LaserRobotParametro? _robotParametro(String key) {
+    final normalizedKey = key.trim();
+    for (final parametro in settings.parametri) {
+      if (parametro.parametro.trim() == normalizedKey) {
+        return parametro;
+      }
+    }
+    return null;
+  }
+
+  dynamic robotParametroValue(String key, {dynamic fallback}) {
+    return _robotParametro(key)?.valore ?? fallback;
+  }
+
+  bool isRobotParametroDirty(String key) {
+    return _dirtyRobotParameterKeys.contains(key.trim());
+  }
+
+  List<Map<String, dynamic>> dirtyRobotParametriPayload() {
+    return settings.parametri
+        .where((parametro) =>
+            parametro.modificabile &&
+            _dirtyRobotParameterKeys.contains(parametro.parametro.trim()))
+        .map((parametro) => {
+              'parametro': parametro.parametro.trim(),
+              'valore': parametro.valore,
+            })
+        .toList();
+  }
+
+  void clearDirtyRobotParametri([Iterable<String>? keys]) {
+    if (keys == null) {
+      _dirtyRobotParameterKeys.clear();
+      return;
+    }
+    _dirtyRobotParameterKeys.removeAll(keys.map((key) => key.trim()));
+  }
+
+  bool _sameRobotParameterValue(dynamic first, dynamic second) {
+    if (first is List || first is Map || second is List || second is Map) {
+      try {
+        return jsonEncode(first) == jsonEncode(second);
+      } catch (_) {
+        return false;
+      }
+    }
+    return first == second;
+  }
+
+  bool updateRobotParametroValue(
+    String key,
+    dynamic value, {
+    bool markDirty = true,
+    bool syncLegacyControls = true,
+  }) {
+    final parametro = _robotParametro(key);
+    if (parametro == null ||
+        _sameRobotParameterValue(parametro.valore, value)) {
+      return false;
+    }
+
+    parametro.valore = value;
+    if (markDirty) {
+      _dirtyRobotParameterKeys.add(parametro.parametro.trim());
+    }
+    if (syncLegacyControls) {
+      _syncLegacyControlForRobotParameter(parametro.parametro.trim());
+    }
+    if (const {
+      'path.weld_width_mm',
+      'path.overlap_percent',
+      'path.step_mode',
+    }.contains(parametro.parametro.trim())) {
+      _syncDerivedPathStep(markDirty: markDirty);
+    }
+    return true;
+  }
+
+  String _displayRobotParameterValue(dynamic value) {
+    if (value == null) return '';
+    if (value is bool) return value ? 'true' : 'false';
+    if (value is List || value is Map) return jsonEncode(value);
+    return value.toString();
+  }
+
+  void _setControllerText(TextEditingController controller, dynamic value) {
+    final text = _displayRobotParameterValue(value);
+    if (controller.text == text) return;
+    controller.text = text;
+  }
+
+  void _setControllersText(
+      Iterable<TextEditingController> controllers, dynamic value) {
+    for (final controller in controllers) {
+      _setControllerText(controller, value);
+    }
+  }
+
+  void _syncLegacyControlForRobotParameter(String key) {
+    if (_syncingLegacyParameterControls) return;
+    _syncingLegacyParameterControls = true;
+    try {
+      final value = robotParametroValue(key);
+      switch (key) {
+        case 'path.overlap_percent':
+          _setControllerText(sovrapposizioneCordone, value);
+          break;
+        case 'path.weld_width_mm':
+          _setControllerText(larghezzaCordone, value);
+          break;
+        case 'path.start_offset_mm':
+          _setControllersText(offsetinizioController, value);
+          break;
+        case 'path.end_offset_mm':
+          _setControllersText(offsetfineController, value);
+          break;
+        case 'path.min_weld_length_mm':
+          _setControllerText(minLengthCordoniController, value);
+          break;
+        case 'path.alternating_order':
+          alternata = LaserRobotParametro.boolOrDefault(value);
+          break;
+        case 'motion.weld.speed_mm_s':
+          _setControllersText(velocitaSaldaturaController, value);
+          break;
+        case 'motion.approach.speed_mm_s':
+          _setControllerText(velocitaAvvicinamentoController, value);
+          break;
+        case 'motion.departure.speed_mm_s':
+          _setControllerText(velocitaAllontanamentoController, value);
+          break;
+        case 'timing.laser_on_before_weld_s':
+          _setControllerText(waitLaseronStartCordoneController, value);
+          break;
+        case 'timing.end_weld_before_laser_off_s':
+          _setControllerText(waitFineCordoneController, value);
+          break;
+        case 'timing.laser_off_before_exit_s':
+          _setControllerText(waitPreUscitaController, value);
+          break;
+        case 'interpolation.method':
+          _setControllerText(nuvolaInterpMethodController, value);
+          break;
+        case 'interpolation.rbf_lambda':
+          _setControllerText(nuvolaSmoothLambdaController, value);
+          break;
+        case 'interpolation.idw_neighbor_count':
+          _setControllerText(nuvolaInterpKController, value);
+          break;
+        case 'job.interpolation_mode':
+          modalitaNuvolaNotifier.value = value?.toString() == 'nuvola';
+          break;
+        case 'job.orientation_mode':
+          direzioneCordoniNotifier.value =
+              value?.toString() == 'orizzontale' ? 'h' : 'v';
+          break;
+        case 'layer.step_x_mm':
+          _setControllerText(scostamentoStratoX, value);
+          break;
+        case 'layer.step_y_mm':
+          if (isPianoRotolamento) {
+            _setControllerText(scostamentoStratoZ, value);
+          } else if (offsetStratoController.isNotEmpty) {
+            _setControllerText(
+                offsetStratoController[_currentStratoIndex()], value);
+          }
+          break;
+        case 'layer.step_z_mm':
+          if (isPianoRotolamento && offsetStratoController.isNotEmpty) {
+            _setControllerText(
+                offsetStratoController[_currentStratoIndex()], value);
+          } else {
+            _setControllerText(scostamentoStratoZ, value);
+          }
+          break;
+        case 'layer.preview_offsets_mm':
+          if (value is List) {
+            for (var i = 0;
+                i < value.length && i < offsetStratoController.length;
+                i++) {
+              _setControllerText(offsetStratoController[i], value[i]);
+            }
+          }
+          break;
+        case 'path.base_points':
+          _syncPointsFromRobotParameters(replaceCoordinates: true);
+          break;
+        case 'path.point_order':
+        case 'path.base_curve_indices':
+        case 'path.limit_curve_indices':
+          _syncPointsFromRobotParameters();
+          break;
+        case 'path.perimeter_order':
+          _syncPointsFromRobotParameters(orderKey: 'path.perimeter_order');
+          break;
+      }
+    } finally {
+      _syncingLegacyParameterControls = false;
+    }
+  }
+
+  void _syncAllLegacyParameterControls() {
+    const executionOnlyKeys = {
+      'path.base_points',
+      'path.point_order',
+      'path.perimeter_order',
+      'path.base_curve_indices',
+      'path.limit_curve_indices',
+      'job.layer_index',
+      'job.last_weld_index',
+      'job.start_from_last_weld',
+      'layer.current_index',
+    };
+    for (final parametro in settings.parametri) {
+      final key = parametro.parametro.trim();
+      if (!executionOnlyKeys.contains(key)) {
+        _syncLegacyControlForRobotParameter(key);
+      }
+    }
+  }
+
+  void _syncPointsFromRobotParameters({
+    bool replaceCoordinates = false,
+    String orderKey = 'path.point_order',
+  }) {
+    var syncedPoints = points.points.map(_copyRobotPosition).toList();
+    if (replaceCoordinates) {
+      final rawPoints = robotParametroValue('path.base_points');
+      if (rawPoints is! List) return;
+      final parsedPoints = <Point>[];
+      for (final rawPoint in rawPoints) {
+        if (rawPoint is! List || rawPoint.length < 6) return;
+        final values = rawPoint
+            .take(6)
+            .map((value) => value is num
+                ? value.toDouble()
+                : double.tryParse(value.toString()))
+            .toList();
+        if (values.any((value) => value == null)) return;
+        parsedPoints.add(Point(
+          x: values[0]!,
+          y: values[1]!,
+          z: values[2]!,
+          j1: values[3]!,
+          j2: values[4]!,
+          j3: values[5]!,
+        ));
+      }
+      syncedPoints = parsedPoints;
+    }
+
+    final pointOrder = robotParametroValue(orderKey);
+    if (pointOrder is List) {
+      for (var i = 0; i < syncedPoints.length; i++) {
+        syncedPoints[i].order = i < pointOrder.length
+            ? int.tryParse(pointOrder[i].toString())
+            : null;
+      }
+    }
+    final baseIndices = robotParametroValue('path.base_curve_indices');
+    final limitIndices = robotParametroValue('path.limit_curve_indices');
+    final baseSet = baseIndices is List
+        ? baseIndices.map((value) => int.tryParse(value.toString())).toSet()
+        : <int?>{};
+    final limitSet = limitIndices is List
+        ? limitIndices.map((value) => int.tryParse(value.toString())).toSet()
+        : <int?>{};
+    for (var i = 0; i < syncedPoints.length; i++) {
+      syncedPoints[i].isBase = baseSet.contains(i);
+      syncedPoints[i].isLimite = limitSet.contains(i);
+    }
+    replacePunti(newPoints: PointsFree(points: syncedPoints));
+  }
+
+  double? _doubleFromController(TextEditingController controller) {
+    return double.tryParse(controller.text.trim().replaceAll(',', '.'));
+  }
+
+  void _bindDoubleRobotParameter(TextEditingController controller, String key) {
+    controller.addListener(() {
+      if (_syncingLegacyParameterControls) return;
+      final value = _doubleFromController(controller);
+      if (value != null) {
+        updateRobotParametroValue(key, value);
+      }
+    });
+  }
+
+  void _initializeLegacyParameterBindings() {
+    if (_legacyParameterBindingsInitialized) return;
+    _legacyParameterBindingsInitialized = true;
+
+    _bindDoubleRobotParameter(sovrapposizioneCordone, 'path.overlap_percent');
+    _bindDoubleRobotParameter(larghezzaCordone, 'path.weld_width_mm');
+    _bindDoubleRobotParameter(
+        minLengthCordoniController, 'path.min_weld_length_mm');
+    _bindDoubleRobotParameter(
+        velocitaAvvicinamentoController, 'motion.approach.speed_mm_s');
+    _bindDoubleRobotParameter(
+        velocitaAllontanamentoController, 'motion.departure.speed_mm_s');
+    _bindDoubleRobotParameter(
+        waitLaseronStartCordoneController, 'timing.laser_on_before_weld_s');
+    _bindDoubleRobotParameter(
+        waitFineCordoneController, 'timing.end_weld_before_laser_off_s');
+    _bindDoubleRobotParameter(
+        waitPreUscitaController, 'timing.laser_off_before_exit_s');
+    _bindDoubleRobotParameter(scostamentoStratoX, 'layer.step_x_mm');
+
+    for (final controller in offsetinizioController) {
+      _bindDoubleRobotParameter(controller, 'path.start_offset_mm');
+    }
+    for (final controller in offsetfineController) {
+      _bindDoubleRobotParameter(controller, 'path.end_offset_mm');
+    }
+    for (final controller in velocitaSaldaturaController) {
+      _bindDoubleRobotParameter(controller, 'motion.weld.speed_mm_s');
+    }
+    for (final controller in offsetStratoController) {
+      controller.addListener(_syncPreviewOffsetsFromLegacyControls);
+    }
+
+    scostamentoStratoZ.addListener(() {
+      if (_syncingLegacyParameterControls) return;
+      final value = _doubleFromController(scostamentoStratoZ);
+      if (value == null) return;
+      updateRobotParametroValue(
+          isPianoRotolamento ? 'layer.step_y_mm' : 'layer.step_z_mm', value);
+    });
+    nuvolaInterpMethodController.addListener(() {
+      if (_syncingLegacyParameterControls) return;
+      final value = nuvolaInterpMethodController.text.trim();
+      if (value.isNotEmpty) {
+        updateRobotParametroValue('interpolation.method', value);
+      }
+    });
+    nuvolaSmoothLambdaController.addListener(() {
+      if (_syncingLegacyParameterControls) return;
+      final value = _doubleFromController(nuvolaSmoothLambdaController);
+      if (value != null) {
+        updateRobotParametroValue('interpolation.rbf_lambda', value);
+      }
+    });
+    nuvolaInterpKController.addListener(() {
+      if (_syncingLegacyParameterControls) return;
+      final value = int.tryParse(nuvolaInterpKController.text.trim());
+      if (value != null) {
+        updateRobotParametroValue('interpolation.idw_neighbor_count', value);
+      }
+    });
+    modalitaNuvolaNotifier.addListener(() {
+      if (_syncingLegacyParameterControls) return;
+      updateRobotParametroValue(
+          'job.interpolation_mode', modalitaNuvola ? 'nuvola' : 'poligono');
+    });
+    direzioneCordoniNotifier.addListener(() {
+      if (_syncingLegacyParameterControls) return;
+      updateRobotParametroValue('job.orientation_mode',
+          direzioneCordoniNotifier.value == 'h' ? 'orizzontale' : 'verticale');
+    });
+  }
+
+  void _syncPreviewOffsetsFromLegacyControls() {
+    if (_syncingLegacyParameterControls) return;
+    final values = <double>[];
+    for (final controller in offsetStratoController) {
+      final value = _doubleFromController(controller);
+      if (value == null) return;
+      values.add(value);
+    }
+    updateRobotParametroValue('layer.preview_offsets_mm', values,
+        syncLegacyControls: false);
+  }
+
+  void _syncDerivedPathStep({bool markDirty = true}) {
+    final stepMode =
+        robotParametroValue('path.step_mode', fallback: 'overlap').toString();
+    if (stepMode != 'overlap') return;
+    final width = robotParametroValue('path.weld_width_mm');
+    final overlap = robotParametroValue('path.overlap_percent');
+    if (width is! num || overlap is! num) return;
+    updateRobotParametroValue(
+      'path.step_mm',
+      width.toDouble() * (1 - overlap.toDouble() / 100),
+      markDirty: markDirty,
+    );
+  }
+
+  void _applyExecutionRobotParameters(Map<String, dynamic> values) {
+    for (final entry in values.entries) {
+      updateRobotParametroValue(
+        entry.key,
+        entry.value,
+        markDirty: false,
+        syncLegacyControls: false,
+      );
+    }
   }
 
   void setRobotCanMove(bool value) {
@@ -2146,9 +2639,14 @@ class LaserPageController {
 
               if (status > 0) {
                 try {
+                  //
+                  //
+                  //
                   final int width = j["MSG"]["Width"];
                   final int height = j["MSG"]["Height"];
-
+                  //
+                  //
+                  //
                   mySetState?.call(() {
                     frameSet = true;
                     frameWidth = width;
@@ -2196,7 +2694,6 @@ class LaserPageController {
                   print(e);
                 }
               }
-
               break;
 
             case 'WEBVIEW_MESSAGE':
@@ -2321,9 +2818,9 @@ class LaserPageController {
       isGasActive = true;
       await sendMessageToRobot({
         "f": "GAS-ON",
-        "pin_laser": settings.pinLaser,
-        "pin_gas": settings.pinGas,
-        "pin_massa": settings.pinMassa,
+        "pin_laser": effectivePinLaser,
+        "pin_gas": effectivePinGas,
+        "pin_massa": effectivePinMassa,
       });
     }
   }
@@ -2340,9 +2837,9 @@ class LaserPageController {
       isWireActive = true;
       await sendMessageToRobot({
         "f": "WIRE-ON",
-        "pin_laser": settings.pinLaser,
-        "pin_gas": settings.pinGas,
-        "pin_massa": settings.pinMassa,
+        "pin_laser": effectivePinLaser,
+        "pin_gas": effectivePinGas,
+        "pin_massa": effectivePinMassa,
       });
     }
   }
@@ -2538,7 +3035,7 @@ class LaserPageController {
       }
     }
 
-    bool alternataTemp = false;
+    bool alternataTemp = alternata;
     final confirmed = await showDialog<bool>(
           context: context,
           barrierDismissible: false,
@@ -2580,6 +3077,7 @@ class LaserPageController {
         false;
     if (confirmed) {
       alternata = alternataTemp;
+      updateRobotParametroValue('path.alternating_order', alternata);
       if (points.isEmpty) {
         // Snackbar rimosso
         return;
@@ -2686,7 +3184,7 @@ class LaserPageController {
       final sovrapposizioneValue = _parseDoubleOrDefault(
           sovrapposizioneCordone.text, defaultSovrapposizioneCordone);
       final stepCordoni =
-          larghezzaCordoneValue * (1 - (sovrapposizioneValue / 100));
+          _effectivePathStep(larghezzaCordoneValue, sovrapposizioneValue);
       final layerPayload =
           _buildLayeringPayloadByControrotaia(stratoIndex: stratoIndex);
 
@@ -2705,77 +3203,63 @@ class LaserPageController {
       //
       //
       //
-      await sendMessageToRobot({
-        "f": "WELD",
-        "riempi_area": true,
-        "execution_mode": "movel",
-        "max_points_per_cordone": 5,
-        "simplify_tolerance": 1.0,
-        "ordine_cordoni": layerPayload["ordine_cordoni"],
-        "verso_cordone": layerPayload["verso_cordone"],
-        "punti_base": puntiBase,
-        if (modalitaNuvola) ...{
-          "cordone_base": cordoneBase,
-          "cordone_limite": cordoneLimite,
-          "ordine_perimetro": ordine,
-        },
-        "tipo_controrotaia": controrotaiaModeValue,
-        "ordine": ordine,
-        "modalita": modalita,
-        "step_cordoni": stepCordoni,
-        "offsetinizio": _parseDoubleOrDefault(
+      _applyExecutionRobotParameters({
+        'path.base_points': puntiBase,
+        'path.point_order': ordine,
+        'path.base_curve_indices': modalitaNuvola ? cordoneBase : null,
+        'path.limit_curve_indices': modalitaNuvola ? cordoneLimite : null,
+        'path.perimeter_order': modalitaNuvola ? ordine : null,
+        'path.step_mm': stepCordoni,
+        'path.start_offset_mm': _parseDoubleOrDefault(
             offsetinizioController[stratoIndex].text,
             offsetinizio[stratoIndex].toDouble()),
-        "offsetfine": _parseDoubleOrDefault(
+        'path.end_offset_mm': _parseDoubleOrDefault(
             offsetfineController[stratoIndex].text,
             offsetfine[stratoIndex].toDouble()),
-        "lastcordone": "$startingCordone",
-        "strato": strato.toString(),
-        "speed": velocitaSaldaturaController[strato].text.trim(),
-        "step_layer_x": layerPayload["step_layer_x"],
-        "step_layer_y": layerPayload["step_layer_y"],
-        "step_layer_z": layerPayload["step_layer_z"],
-        "elenco_step_layer": elencoStepLayer,
-        "laseroff_wait_distacco": _parseDecimalStringOrDefault(
-            waitPreUscitaController.text, defaultWaitPreUscita),
-        "end_cordone_wait_laseroff": _parseDecimalStringOrDefault(
-            waitFineCordoneController.text, defaultWaitFineCordone),
-        "url": settings.ipServer,
-        "pin_laser": settings.pinLaser,
-        "pin_gas": settings.pinGas,
-        "pin_massa": settings.pinMassa,
-        "sovrapposizione_cordone": sovrapposizioneCordone.text.trim(),
-        "larghezzacordone": larghezzaCordone.text.trim(),
-        "laseron_wait_startcordone": _parseDecimalStringOrDefault(
-            waitLaseronStartCordoneController.text,
-            defaultWaitLaseronStartCordone),
-        "min_length_cordoni": _parseDecimalStringOrDefault(
+        'path.overlap_percent': sovrapposizioneValue,
+        'path.weld_width_mm': larghezzaCordoneValue,
+        'path.min_weld_length_mm': _parseDoubleOrDefault(
             minLengthCordoniController.text, defaultMinLengthCordoni),
-        "velocita_avvicinamento": _parseDecimalStringOrDefault(
+        'path.alternating_order': alternata,
+        'job.rail_type': controrotaiaModeValue,
+        'job.orientation_mode': modalita,
+        'job.interpolation_mode': modalitaNuvola ? 'nuvola' : 'poligono',
+        'job.start_from_last_weld': startingCordone > 0,
+        'job.last_weld_index': startingCordone,
+        'job.layer_index': strato,
+        'layer.current_index': strato,
+        'layer.step_x_mm': layerPayload["step_layer_x"],
+        'layer.step_y_mm': layerPayload["step_layer_y"],
+        'layer.step_z_mm': layerPayload["step_layer_z"],
+        'layer.preview_offsets_mm': elencoStepLayer,
+        'motion.weld.speed_mm_s': _parseDoubleOrDefault(
+            velocitaSaldaturaController[strato].text,
+            velocitasaldatura[strato].toDouble()),
+        'motion.approach.speed_mm_s': _parseDoubleOrDefault(
             velocitaAvvicinamentoController.text, defaultVelocitaAvvicinamento),
-        "velocita_allontanamento": _parseDecimalStringOrDefault(
+        'motion.departure.speed_mm_s': _parseDoubleOrDefault(
             velocitaAllontanamentoController.text,
             defaultVelocitaAllontanamento),
-        "alternata": alternata,
+        'timing.laser_off_before_exit_s': _parseDoubleOrDefault(
+            waitPreUscitaController.text, defaultWaitPreUscita),
+        'timing.end_weld_before_laser_off_s': _parseDoubleOrDefault(
+            waitFineCordoneController.text, defaultWaitFineCordone),
+        'timing.laser_on_before_weld_s': _parseDoubleOrDefault(
+            waitLaseronStartCordoneController.text,
+            defaultWaitLaseronStartCordone),
+        'interpolation.method': nuvolaInterpMethodController.text.trim().isEmpty
+            ? 'guided_loft_z'
+            : nuvolaInterpMethodController.text.trim(),
+        'interpolation.rbf_lambda':
+            double.tryParse(nuvolaSmoothLambdaController.text) ?? 0.000001,
+        'interpolation.idw_neighbor_count':
+            int.tryParse(nuvolaInterpKController.text) ?? 8,
+      });
+
+      await sendMessageToRobot({
+        "f": "WELD",
         "safeposition": safePositionDecoded,
-        "modalita_interpolazione": modalitaNuvola ? "nuvola" : "poligono",
         ..._robotParametriPayload(),
-        if (modalitaNuvola) ...{
-          "use_nuvola": true,
-          "quota_tassativa": true,
-          "grid_only": true,
-          "exact_tol": 0.001,
-          "interp_method": nuvolaInterpMethodController.text.trim().isEmpty
-              ? 'guided_loft_z'
-              : nuvolaInterpMethodController.text.trim(),
-          "smooth_kernel": "thin_plate",
-          "smooth_lambda":
-              double.tryParse(nuvolaSmoothLambdaController.text) ?? 0.000001,
-          "interp_k": int.tryParse(nuvolaInterpKController.text) ?? 8,
-          "interp_power": 2.0,
-          "linear_candidate_k": 12,
-          "debug_hull": false,
-        },
       });
       //
       //
@@ -3156,12 +3640,21 @@ class LaserPageController {
   Future<void> setRobotSettings(
       {required LaserRobotSettings newSettings}) async {
     final oldMode = controrotaiaModeValue;
-    // Preserve the current tipoControrotaia: it is a runtime property of the
-    // controller and must NOT be overwritten by the server response (which
-    // derives tipoControrotaia from the first DB limit row, whose ordering is
-    // arbitrary and may differ from the robot's actual current mode).
-    // The mode can only change explicitly via sendSetModeControrotaia.
-    final nextTipo = tipoControrotaia;
+    // job.rail_type è la fonte canonica quando è presente; il campo legacy
+    // resta il fallback per risposte di server meno recenti.
+    String? configuredRailType;
+    for (final parametro in newSettings.parametri) {
+      if (parametro.parametro.trim() == 'job.rail_type') {
+        configuredRailType = parametro.valore?.toString();
+        break;
+      }
+    }
+    final legacyRailType = newSettings.tipoControrotaia.trim().isNotEmpty
+        ? newSettings.tipoControrotaia
+        : tipoControrotaia;
+    final nextTipo = configuredRailType == null || configuredRailType.isEmpty
+        ? _normalizeControrotaiaValue(legacyRailType)
+        : _normalizeControrotaiaValue(configuredRailType);
 
     final connectionParamsChanged = _connectionParamChanged(
             newSettings.serialeRobot, settings.serialeRobot) ||
@@ -3209,7 +3702,8 @@ class LaserPageController {
       stepRight: newSettings.stepRight,
       stepY: newSettings.stepY,
       tipoControrotaia: nextTipo,
-      limiti: newSettings.limiti.isNotEmpty ? newSettings.limiti : settings.limiti,
+      limiti:
+          newSettings.limiti.isNotEmpty ? newSettings.limiti : settings.limiti,
       parametri: newSettings.parametri.isNotEmpty
           ? newSettings.parametri
           : settings.parametri,
@@ -3220,15 +3714,26 @@ class LaserPageController {
       settings = mergedSettings;
       tipoControrotaia = nextTipo;
     });
+    if (newSettings.parametri.isNotEmpty) {
+      clearDirtyRobotParametri();
+    }
     //
     //
     final modeChanged = oldMode != controrotaiaModeValue;
     //
     //
-    _syncScostamentoFieldDefaultsForCurrentMode(force: true);
+    _syncingLegacyParameterControls = true;
+    try {
+      _syncScostamentoFieldDefaultsForCurrentMode(force: true);
+      if (modeChanged) {
+        _applyDirectionDefaultsForTipo();
+        _syncOffsetInizioDefaultsForCurrentMode(force: true);
+      }
+    } finally {
+      _syncingLegacyParameterControls = false;
+    }
+    _syncAllLegacyParameterControls();
     if (modeChanged) {
-      _applyDirectionDefaultsForTipo();
-      _syncOffsetInizioDefaultsForCurrentMode(force: true);
       await resetPunti();
       dashboardClear?.call();
       notifyPointsOrderChanged();
@@ -3264,6 +3769,7 @@ class LaserPageController {
     });
     _syncScostamentoFieldDefaultsForCurrentMode(force: true);
     _syncOffsetInizioDefaultsForCurrentMode(force: true);
+    updateRobotParametroValue('job.rail_type', normalized);
     // Reset dei punti: si riparte da capo con il nuovo tipo.
     await resetPunti();
     dashboardClear?.call();
@@ -3514,8 +4020,16 @@ class LaserPageController {
     return double.tryParse(value.trim().replaceAll(",", ".")) ?? fallback;
   }
 
-  String _parseDecimalStringOrDefault(String? value, double fallback) {
-    return _parseDoubleOrDefault(value, fallback).toString();
+  double _effectivePathStep(double weldWidth, double overlapPercent) {
+    final calculated = weldWidth * (1 - overlapPercent / 100);
+    if (robotParametroValue('path.step_mode', fallback: 'overlap').toString() !=
+        'explicit') {
+      return calculated;
+    }
+    final configured = robotParametroValue('path.step_mm');
+    return configured is num
+        ? configured.toDouble()
+        : double.tryParse(configured?.toString() ?? '') ?? calculated;
   }
 
   int _currentStratoIndex() {
@@ -3710,7 +4224,7 @@ class LaserPageController {
       final sovrapposizioneValue = _parseDoubleOrDefault(
           sovrapposizioneCordone.text, defaultSovrapposizioneCordone);
       final stepCordoni =
-          larghezzaCordoneValue * (1 - (sovrapposizioneValue / 100));
+          _effectivePathStep(larghezzaCordoneValue, sovrapposizioneValue);
       final modalita =
           direzioneCordoniNotifier.value == 'h' ? 'orizzontale' : 'verticale';
       final layerPayload =
@@ -3719,64 +4233,49 @@ class LaserPageController {
 
       final safePositionDecoded = _safePositionPayloadForRobotCommands();
 
-      final payload = {
-        "punti_base": puntiBase,
-        "ordine": ordine,
-        "riempi_area": true,
-        "execution_mode": "movel",
-        "max_points_per_cordone": 5,
-        "simplify_tolerance": 1.0,
-        if (modalitaNuvola) ...{
-          "cordone_base": cordoneBase,
-          "cordone_limite": cordoneLimite,
-          "ordine_perimetro": ordine,
-        },
-        "tipo_controrotaia": controrotaiaModeValue,
-        "modalita": modalita,
-        "step_cordoni": stepCordoni,
-        "offsetinizio": _parseDoubleOrDefault(
+      _applyExecutionRobotParameters({
+        'path.base_points': puntiBase,
+        'path.point_order': ordine,
+        'path.base_curve_indices': modalitaNuvola ? cordoneBase : null,
+        'path.limit_curve_indices': modalitaNuvola ? cordoneLimite : null,
+        'path.perimeter_order': modalitaNuvola ? ordine : null,
+        'path.step_mm': stepCordoni,
+        'path.start_offset_mm': _parseDoubleOrDefault(
             offsetinizioController[stratoIndex].text,
             offsetinizio[stratoIndex].toDouble()),
-        "offsetfine": _parseDoubleOrDefault(
+        'path.end_offset_mm': _parseDoubleOrDefault(
             offsetfineController[stratoIndex].text,
             offsetfine[stratoIndex].toDouble()),
-        "strato": 0,
-        "step_layer_x": layerPayload["step_layer_x"],
-        "step_layer_y": layerPayload["step_layer_y"],
-        "step_layer_z": layerPayload["step_layer_z"],
-        "elenco_step_layer": elencoStepLayer,
-        "verso_cordone": layerPayload["verso_cordone"],
-        "ordine_cordoni": layerPayload["ordine_cordoni"],
-        "safeposition": safePositionDecoded,
-        "sovrapposizione_cordone": sovrapposizioneCordone.text,
-        "larghezzacordone": larghezzaCordone.text,
-        "min_length_cordoni": _parseDecimalStringOrDefault(
+        'path.overlap_percent': sovrapposizioneValue,
+        'path.weld_width_mm': larghezzaCordoneValue,
+        'path.min_weld_length_mm': _parseDoubleOrDefault(
             minLengthCordoniController.text, defaultMinLengthCordoni),
-        "alternata": alternata,
-        "modalita_interpolazione": modalitaNuvola ? "nuvola" : "poligono",
+        'path.alternating_order': alternata,
+        'job.rail_type': controrotaiaModeValue,
+        'job.orientation_mode': modalita,
+        'job.interpolation_mode': modalitaNuvola ? 'nuvola' : 'poligono',
+        'job.layer_index': 0,
+        'layer.current_index': 0,
+        'layer.step_x_mm': layerPayload["step_layer_x"],
+        'layer.step_y_mm': layerPayload["step_layer_y"],
+        'layer.step_z_mm': layerPayload["step_layer_z"],
+        'layer.preview_offsets_mm': elencoStepLayer,
+        'interpolation.method': nuvolaInterpMethodController.text.trim().isEmpty
+            ? 'smooth'
+            : nuvolaInterpMethodController.text.trim(),
+        'interpolation.rbf_lambda':
+            double.tryParse(nuvolaSmoothLambdaController.text) ?? 0.000001,
+        'interpolation.idw_neighbor_count':
+            int.tryParse(nuvolaInterpKController.text) ?? 8,
+      });
+
+      final payload = {
+        "safeposition": safePositionDecoded,
         ..._robotParametriPayload(),
-        if (modalitaNuvola) ...{
-          "use_nuvola": true,
-          "quota_tassativa": true,
-          "grid_only": true,
-          "exact_tol": 0.001,
-          "interp_method": nuvolaInterpMethodController.text.trim().isEmpty
-              ? 'smooth'
-              : nuvolaInterpMethodController.text.trim(),
-          "smooth_kernel": "thin_plate",
-          "smooth_lambda":
-              double.tryParse(nuvolaSmoothLambdaController.text) ?? 0.000001,
-          "interp_k": int.tryParse(nuvolaInterpKController.text) ?? 8,
-          "interp_power": 2.0,
-          "linear_candidate_k": 12,
-          "debug_hull": false,
-        },
       };
 
       final pointsToSend = jsonEncode(payload);
-      final interpolaUrl = modalitaNuvola
-          ? "http://${settings.ipServer}/interpola_nuvola"
-          : "http://${settings.ipServer}/interpola";
+      final interpolaUrl = _fastApiUrl(cloud: modalitaNuvola);
       lastInterpolaUrl = interpolaUrl;
       print(
           ">>>INTERPOLA_REQUEST<<< url=$interpolaUrl | headers={Content-Type: application/json}");
