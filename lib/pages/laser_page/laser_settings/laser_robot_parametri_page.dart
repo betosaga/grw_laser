@@ -23,6 +23,38 @@ class _ParametroDropdownOption {
   });
 }
 
+int compareLaserRobotSectionLabels(String first, String second) {
+  int? sectionNumber(String label) {
+    final match = RegExp(r'^\s*(\d+)').firstMatch(label);
+    return match == null ? null : int.tryParse(match.group(1)!);
+  }
+
+  final firstNumber = sectionNumber(first);
+  final secondNumber = sectionNumber(second);
+
+  if (firstNumber != null && secondNumber != null) {
+    final numberCompare = firstNumber.compareTo(secondNumber);
+    if (numberCompare != 0) return numberCompare;
+  } else if (firstNumber != null) {
+    return -1;
+  } else if (secondNumber != null) {
+    return 1;
+  }
+
+  return first.toLowerCase().compareTo(second.toLowerCase());
+}
+
+String laserRobotSectionDisplayLabel(String label, int displayNumber) {
+  final numberMatch = RegExp(r'^\s*\d+').firstMatch(label);
+  if (numberMatch == null) return label;
+
+  return label.replaceRange(
+    numberMatch.start,
+    numberMatch.end,
+    displayNumber.toString(),
+  );
+}
+
 class LaserRobotParametriPage extends StatefulWidget {
   final LaserPageController laserPageController;
 
@@ -101,7 +133,10 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
 
     _parametri = List<LaserRobotParametro>.from(settings.parametri)
       ..sort((a, b) {
-        final categoryCompare = a.categoryLabel.compareTo(b.categoryLabel);
+        final categoryCompare = compareLaserRobotSectionLabels(
+          a.categoryLabel,
+          b.categoryLabel,
+        );
         if (categoryCompare != 0) return categoryCompare;
         final ordineCompare = a.ordine.compareTo(b.ordine);
         if (ordineCompare != 0) return ordineCompare;
@@ -477,10 +512,20 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
   }
 
   Map<String, List<LaserRobotParametro>> _groupByCategory() {
-    final grouped = <String, List<LaserRobotParametro>>{};
+    final groupedByOriginalLabel = <String, List<LaserRobotParametro>>{};
     for (final parametro in _parametri) {
-      grouped.putIfAbsent(parametro.categoryLabel, () => []);
-      grouped[parametro.categoryLabel]!.add(parametro);
+      groupedByOriginalLabel.putIfAbsent(parametro.categoryLabel, () => []);
+      groupedByOriginalLabel[parametro.categoryLabel]!.add(parametro);
+    }
+
+    final grouped = <String, List<LaserRobotParametro>>{};
+    var nextDisplayNumber = 1;
+    for (final entry in groupedByOriginalLabel.entries) {
+      final hasNumber = RegExp(r'^\s*\d+').hasMatch(entry.key);
+      final displayLabel = hasNumber
+          ? laserRobotSectionDisplayLabel(entry.key, nextDisplayNumber++)
+          : entry.key;
+      grouped[displayLabel] = entry.value;
     }
     return grouped;
   }

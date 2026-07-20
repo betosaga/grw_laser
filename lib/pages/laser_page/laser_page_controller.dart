@@ -2707,8 +2707,6 @@ class LaserPageController {
       }
     } catch (e) {
       //
-      print("[getPoint] ERROR: $e");
-      //
       mySetState?.call(() {
         canMoveRobot = true;
       });
@@ -4232,7 +4230,7 @@ class LaserPageController {
       final elencoStepLayer = _buildElencoStepLayerPayload();
 
       final safePositionDecoded = _safePositionPayloadForRobotCommands();
-
+      
       _applyExecutionRobotParameters({
         'path.base_points': puntiBase,
         'path.point_order': ordine,
@@ -4294,6 +4292,8 @@ class LaserPageController {
       print("[interpola] responseBody=${response.body}");
       print("[genera punti] status ${response.statusCode}");
       print("${response.statusCode}");
+      //
+      //
       final bodyStr = response.body;
       log(bodyStr);
       lastInterpolaResponseNotifier.value = bodyStr;
@@ -4306,16 +4306,10 @@ class LaserPageController {
 
       if (response.isSuccess) {
         final interpolaResponse = interpolaResponseFromJson(bodyStr);
-        print("[genera punti] ok=${interpolaResponse.ok}");
-        print("[genera punti] index=${interpolaResponse.index}");
-        print("[genera punti] log_file=${interpolaResponse.logFile}");
-        print("[genera punti] grafico_file=${interpolaResponse.graficoFile}");
-        print("[genera punti] plot_json=${interpolaResponse.plotJson}");
-        print("[genera punti] meta_json=${interpolaResponse.metaJson}");
-        print("[genera punti] viewer_url=${interpolaResponse.viewerUrl}");
+
         final finalViewerUrl =
             '$serverBaseUrl${interpolaResponse.viewerUrl}${interpolaResponse.viewerUrl.contains('?') ? '&' : '?'}t=${DateTime.now().millisecondsSinceEpoch}';
-        print("[genera punti URL] $finalViewerUrl");
+
         viewerUrlNotifier.value = finalViewerUrl;
 
         // New generated path => new welding run: clear executed layers and runtime progress.
