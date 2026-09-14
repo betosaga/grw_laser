@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:grw_laser/configuration/app_gradients.dart';
 import 'package:grw_laser/services/device_info_manager.dart';
 import 'package:grw_laser/services/messenger.dart';
@@ -152,7 +151,7 @@ class _AppDrawerState extends State<AppDrawer> {
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                           child: TextButton.icon(
                             onPressed: () => Pager.pop(context),
-                            icon: const Icon(FontAwesomeIcons.circleXmark,
+                            icon: const Icon(Icons.cancel_outlined,
                                 color: Colors.black38, size: 18),
                             label: const Text("Chiudi",
                                 style: TextStyle(
