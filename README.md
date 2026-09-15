@@ -1,16 +1,29 @@
 # grw_laser
 
-A new Flutter project.
+GRW Laser Robot - Saga.
 
-## Getting Started
+## iOS: Swift Package Manager
 
-This project is a starting point for a Flutter application.
+Le dipendenze native iOS sono gestite con Swift Package Manager, abilitato nel
+`pubspec.yaml`. CocoaPods non è necessario. Usare Flutter 3.44 o successivo;
+migrazione verificata con Flutter 3.47.4 e Xcode 27.
 
-A few resources to get you started if this is your first Flutter project:
+```sh
+flutter pub get
+flutter build ios --simulator --debug
+```
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+Per lavorare in Xcode, aprire `ios/Runner.xcworkspace`. Dopo un `flutter clean`,
+eseguire `flutter pub get` e `flutter build ios --config-only --no-codesign`
+prima di aprire Xcode, così Flutter rigenera i pacchetti locali.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- `flutter_inappwebview` e `flutter_secure_storage` sono stati rimossi perché
+  non usati dal codice dell'app.
+- `volume_controller` usa la serie 3.5 con supporto SPM. Il vincolo `<3.6.0`
+  evita di richiedere anche la migrazione Android ad AGP 9 / Kotlin integrato.
+- `flutter_tts` usa una copia locale della versione 4.2.5 con supporto SPM iOS.
+  Origine, modifiche e istruzioni per tornare al pacchetto pubblicato sono in
+  [packages/flutter_tts/LOCAL_CHANGES.md](packages/flutter_tts/LOCAL_CHANGES.md).
+
+Quando si aggiungono plugin iOS, verificarne il supporto SPM per evitare che
+Flutter debba ricorrere nuovamente a CocoaPods.

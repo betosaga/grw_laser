@@ -21,9 +21,10 @@ dependencies:
   encrypt: ^5.0.3
   flutter_joystick: ^0.0.4
   flutter_responsive_framework: ^0.0.2
-  flutter_secure_storage: ^8.1.0
   flutter_svg: ^2.0.16
-  flutter_tts: ^4.0.2
+  # Local 4.2.5 copy with iOS Swift Package Manager support.
+  flutter_tts:
+    path: packages/flutter_tts
   get: ^4.6.6
   hex: ^0.2.0
   hive: ^2.2.3
@@ -46,11 +47,11 @@ dependencies:
   url_launcher_ios: ^6.3.1
   vibration: ^3.1.5
   wakelock_plus: ^1.2.8
-  volume_controller: ^2.0.8
+  # 3.6+ requires the Android migration to AGP 9 / built-in Kotlin.
+  volume_controller: '>=3.5.0 <3.6.0'
   webview_flutter: ^4.13.1
   collection: ^1.19.1
   shared_preferences: ^2.5.3
-  flutter_inappwebview: ^6.1.5
   cupertino_icons: ^1.0.8
   android_id: ^0.4.0
   popover: ^0.3.0
@@ -74,6 +75,8 @@ flutter_launcher_icons:
     generate: false
 
 flutter:
+  config:
+    enable-swift-package-manager: true
   uses-material-design: true
   assets:
     - images/

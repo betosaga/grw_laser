@@ -8,6 +8,6 @@ class VolumeService {
   static double rate = Platform.isIOS ? 0.5 : 0.6;
 
   static void setMaximumVolume() {
-    VolumeController().setVolume(1.0);
+    VolumeController.instance.setVolume(1.0);
   }
 }

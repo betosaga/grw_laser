@@ -1,0 +1,2 @@
+# The app's root pubspec.lock pins the dependencies used by the build.
+/pubspec.lock
