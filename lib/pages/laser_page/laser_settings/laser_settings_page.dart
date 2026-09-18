@@ -707,7 +707,7 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
         box.setString(
             value: currentEncoded, key: Constants.HIVE_LASER_SETTINGS_LIST_KEY);
       } catch (e) {
-        print("Failed to parse Settings String From Disk");
+        widget.laserPageController.printLog("Failed to parse Settings String From Disk");
       }
     }
   }
@@ -878,7 +878,7 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
       //
       //
     } catch (e) {
-      print(e.toString());
+      widget.laserPageController.printLog(e.toString());
       if (e is ResponseError) {
         if (e.message.trim() != "") {
           Messenger.showMessageGenericError(context, e.message, 2);

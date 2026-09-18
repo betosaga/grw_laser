@@ -325,7 +325,7 @@ class LaserRectangleWithCrossCursorState
   }
 
   Offset setDStart(double posx, double posz, bool destraSinistra) {
-    print("[getPoint] SET DSTART [$posx, $posz]");
+    widget.controller.printLog("[getPoint] SET DSTART [$posx, $posz]");
     setFixedStartPoint(destraSinistra: destraSinistra);
 
     widget.controller.canMoveRobot = true;
@@ -338,13 +338,13 @@ class LaserRectangleWithCrossCursorState
     double startY =
         fixedStartPointY * verticalLimit; // 80% del limite verticale
 
-    print("[getPoint] - [ $startX, $startY ]");
+    widget.controller.printLog("[getPoint] - [ $startX, $startY ]");
 
     _position = Offset(startX, startY);
     _panOffset = Offset.zero;
     _viewScale = 1.0;
     mySetState(() {});
-    print("[getPoint] $_position");
+    widget.controller.printLog("[getPoint] $_position");
     return _position;
   }
 
@@ -361,7 +361,7 @@ class LaserRectangleWithCrossCursorState
   /// Invertendo la formula recuperiamo i valori originali e manteniamo il
   /// sistema di riferimento coerente con tutti i punti già presi.
   Offset initDStartWithoutMove(double posx, double posz, bool destraSinistra) {
-    print("[getPoint] INIT DSTART WITHOUT MOVE [$posx, $posz]");
+    widget.controller.printLog("[getPoint] INIT DSTART WITHOUT MOVE [$posx, $posz]");
     widget.controller.canMoveRobot = true;
     _robotStartPositionX = posx;
     _robotStartPositionZ = posz;
@@ -385,7 +385,7 @@ class LaserRectangleWithCrossCursorState
         fixedStartPointY =
             (firstDashboardPos.dy / verticalLimit).clamp(-1.0, 1.0);
       }
-      print(
+      widget.controller.printLog(
           "[getPoint] INIT DSTART: restored fixedStart=($fixedStartPointX, $fixedStartPointY) from firstPoint.dashboardPosition");
     } else {
       // Nessun punto ancora: usa la posizione corrente del cursore.
@@ -406,13 +406,13 @@ class LaserRectangleWithCrossCursorState
     if (newPosition != null) {
       updateCursorPosition(newPosition);
     } else {
-      print("NEW POSITION IS NULL");
+      widget.controller.printLog("NEW POSITION IS NULL");
     }
   }
 
   Offset? calculateCursorPositionFromRobotPosition(double posx, double posz) {
     if (_robotStartPositionX == null || _robotStartPositionZ == null) {
-      print("IL CENTRO E' VUOTO");
+      widget.controller.printLog("IL CENTRO E' VUOTO");
       // Se il centro non è impostato, non fare nulla
       // widget.controller.printLog("LASER: CENTRO NON IMPOSTATO");
       return null;
@@ -420,10 +420,10 @@ class LaserRectangleWithCrossCursorState
     //
     //
     //
-    // print(
+    // widget.controller.printLog(
     //     "LASER: CENTER X: $_robotStartPositionX, CENTER Z: $_robotStartPositionZ");
-    // print("posx: $posx, _robotStartPositionX: $_robotStartPositionX");
-    // print("posz: $posz, _robotStartPositionZ: $_robotStartPositionZ");
+    // widget.controller.printLog("posx: $posx, _robotStartPositionX: $_robotStartPositionX");
+    // widget.controller.printLog("posz: $posz, _robotStartPositionZ: $_robotStartPositionZ");
     //
     //
     //
@@ -445,7 +445,7 @@ class LaserRectangleWithCrossCursorState
   }
 
   Offset getPoint() {
-    print("[getPoint] CALLED FROM HERE: [$_position]");
+    widget.controller.printLog("[getPoint] CALLED FROM HERE: [$_position]");
     return _position;
   }
 
@@ -542,7 +542,7 @@ class LaserRectangleWithCrossCursorState
   }
 
   void _toggleOrderAt(Offset localPosition) {
-    print(
+    widget.controller.printLog(
         "[pallino-tapped] tap localPosition=(${localPosition.dx.toStringAsFixed(2)}, ${localPosition.dy.toStringAsFixed(2)})");
     final points = widget.controller.points.points;
     final mode = widget.controller.pointSelectionMode;
@@ -579,7 +579,7 @@ class LaserRectangleWithCrossCursorState
             widget.controller.points.normalizeOrder();
           }
         }
-        print(
+        widget.controller.printLog(
             "[pallino-tapped] hit index=$i mode=$mode oldOrder=$oldOrder newOrder=${points[i].order}");
         widget.controller.notifyPointsOrderChanged();
         _updateCanGeneratePoints();
@@ -591,9 +591,9 @@ class LaserRectangleWithCrossCursorState
       }
     }
     if (!touched) {
-      print("[pallino-tapped] no-hit");
+      widget.controller.printLog("[pallino-tapped] no-hit");
     }
-    print("Toccato: $touched");
+    widget.controller.printLog("Toccato: $touched");
   }
 
   Future<_PointLongPressAction?> _showPointActionMenu() {
@@ -785,7 +785,7 @@ class LaserRectangleWithCrossCursorState
             break;
           }
         }
-        print("Toccato Long: $touched");
+        widget.controller.printLog("Toccato Long: $touched");
       },
       onTapUp: (details) {
         if (_ignoreNextTapUp) {
@@ -913,7 +913,7 @@ class LaserRectangleWithCrossCursorState
 
   void mySetState(VoidCallback? f) {
     if (f == null) {
-      print("DASHBOARD ----> SET STATE INTERRUPTED");
+      widget.controller.printLog("DASHBOARD ----> SET STATE INTERRUPTED");
       return;
     }
     if (mounted) {

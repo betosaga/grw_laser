@@ -16,6 +16,11 @@ The upstream MIT license is retained in `LICENSE`.
   sources in one target.
 - Omitted the iOS podspec and Objective-C wrapper, which are no longer needed.
 - Kept the upstream Dart API and other platform implementations unchanged.
+- Migrated the Android build to AGP 9.0.1 and built-in Kotlin, removing the
+  explicit Kotlin plugin and standard library dependencies. Uses the
+  `compilerOptions` DSL, preserving the Java/Kotlin 11 bytecode target.
+- Requires Flutter 3.44 / Dart 3.12 or later for the migrated plugin build;
+  the host app requires Flutter 3.47 with built-in Kotlin enabled.
 - Omitted the upstream example app from this vendored copy.
 
 This local copy can be removed when a published upstream version supports SPM

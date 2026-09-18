@@ -59,9 +59,10 @@ svuotare alla riconnessione. Non viene chiamato `flush()` dopo ogni comando:
 non costituirebbe una conferma remota. Gli errori di scrittura sono osservati
 sia durante `write()` sia tramite `socket.done`.
 
-La pagina mostra l'ultimo esito, un avviso persistente per mancato invio/esito
-sconosciuto e uno storico degli ultimi 100 comandi. Il log include data, ID
-locale e sessione. L'ID locale non viene inviato al robot. La memoria di
+Stato della connessione, esiti dei comandi ed errori passano esclusivamente
+attraverso `LaserPageController.printLog` e sono visibili nella finestra log,
+senza una barra di stato aggiuntiva nella pagina del robot. Il log include
+data, ID locale e sessione. L'ID locale non viene inviato al robot. La memoria di
 monitoraggio è limitata a 256 comandi pendenti; superato il limite, il più
 vecchio termina come sconosciuto, senza bloccare nuovi STOP/OFF.
 
@@ -104,3 +105,13 @@ Le prove usano un socket simulato e un server TCP su localhost. Nessuna prova
 invia comandi al robot fisico. Coprono framing, UTF-8, errori, ordine delle
 risposte, interfaccia lenta, sessioni scadute, timeout, rilevamento del silenzio,
 esiti dei comandi e regressioni dei parametri esistenti.
+
+## Eccezioni
+
+`Connection refused`, timeout e altri errori di apertura TCP sono intercettati:
+la connessione passa a disconnessa e il timer può ritentare. Lo stack trace
+mostrato da `printLog` è diagnostico, non indica un'eccezione non gestita.
+Anche gli errori di lettura, scrittura, cancellazione della sottoscrizione,
+chiusura e azioni asincrone del protocollo vengono intercettati e registrati.
+Un errore nei callback di notifica non deve interrompere la pulizia della
+sessione o lasciare i comandi pendenti senza esito.

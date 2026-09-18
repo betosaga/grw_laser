@@ -110,17 +110,21 @@ class RobotConnection {
     _setState(RobotConnectionState.connecting, 'Connessione a $host:$port');
     try {
       final candidate = await _connector(host, port, connectTimeout);
+      // Install the output error handler before setup or destruction, including
+      // sockets returned by an obsolete connection attempt.
+      unawaited(
+          candidate.done.then<void>((_) {}, onError: (Object e, StackTrace s) {
+        onLog('[TCP OUTPUT session=$epoch] Errore gestito: $e\n$s');
+        if (isCurrentSession(epoch) && identical(_socket, candidate)) {
+          disconnect(reason: 'Errore invio TCP: $e');
+        }
+      }));
       if (!isCurrentSession(epoch)) {
-        candidate.destroy();
+        _destroySocket(candidate, epoch);
         return;
       }
       _socket = candidate;
       candidate.setOption(SocketOption.tcpNoDelay, true);
-      // Observe output-side errors too. write() itself is not a delivery ACK.
-      unawaited(
-          candidate.done.then<void>((_) {}, onError: (Object e, StackTrace s) {
-        if (isCurrentSession(epoch)) disconnect(reason: 'Errore invio TCP: $e');
-      }));
       final buffer = RobotJsonBuffer();
       _lastMessageAt = _now();
       _lastStatusAt = null;
@@ -143,8 +147,10 @@ class RobotConnection {
           if (isCurrentSession(epoch)) disconnect(reason: 'Robot disconnesso');
         },
         onError: (Object e, StackTrace s) {
-          if (isCurrentSession(epoch))
+          if (isCurrentSession(epoch)) {
+            onLog('[TCP INPUT session=$epoch] Errore gestito: $e\n$s');
             disconnect(reason: 'Errore ricezione TCP: $e');
+          }
         },
         cancelOnError: true,
       );
@@ -153,7 +159,7 @@ class RobotConnection {
           RobotConnectionState.awaitingData, 'TCP aperto, in attesa del robot');
     } catch (e, s) {
       if (!isCurrentSession(epoch)) return;
-      onLog('[CONNECT session=$epoch] $e\n$s');
+      onLog('[CONNECT session=$epoch] Errore gestito: $e\n$s');
       disconnect(reason: 'Connessione fallita: $e');
     }
   }
@@ -273,7 +279,7 @@ class RobotConnection {
     });
     try {
       current.write(encoded);
-      onCommandChanged(receipt);
+      _notifyCommandChanged(receipt);
     } catch (e) {
       // Once write is attempted, do not assert that zero bytes were sent.
       disconnect(reason: 'Errore scrittura TCP: $e');
@@ -290,7 +296,7 @@ class RobotConnection {
       accepted: false,
       outcome: RobotCommandOutcome(RobotCommandStatus.notSent, reason),
     );
-    onCommandChanged(receipt);
+    _notifyCommandChanged(receipt);
     return receipt;
   }
 
@@ -316,22 +322,43 @@ class RobotConnection {
     if (_pending.remove(receipt.id) == null) return;
     _commandTimers.remove(receipt.id)?.cancel();
     receipt.finish(outcome);
-    onCommandChanged(receipt);
+    _notifyCommandChanged(receipt);
+  }
+
+  void _notifyCommandChanged(RobotCommandReceipt receipt) {
+    try {
+      onCommandChanged(receipt);
+    } catch (e, s) {
+      onLog(
+          '[COMMAND CALLBACK session=${receipt.session}] Errore gestito: $e\n$s');
+    }
+  }
+
+  /// Own errors from async protocol side effects instead of leaving unawaited
+  /// futures to the Flutter error zone. State changes before the first await
+  /// still happen in message order.
+  void runAction(FutureOr<void> Function() action) {
+    unawaited(_runAction(action, _session));
+  }
+
+  Future<void> _runAction(FutureOr<void> Function() action, int epoch) async {
+    if (!isCurrentSession(epoch)) return;
+    try {
+      await action();
+    } catch (e, s) {
+      onLog('[ACTION session=$epoch] Errore gestito: $e\n$s');
+    }
   }
 
   /// Delayed protocol actions (e.g. SETMODE after listening) die with a session.
-  void schedule(Duration delay, void Function() action) {
+  void schedule(Duration delay, FutureOr<void> Function() action) {
     if (_socket == null || _disposed) return;
     final epoch = _session;
     late Timer timer;
     timer = Timer(delay, () {
       _sessionTimers.remove(timer);
       if (!isCurrentSession(epoch)) return;
-      try {
-        action();
-      } catch (e, s) {
-        onLog('[ACTION] $e\n$s');
-      }
+      unawaited(_runAction(action, epoch));
     });
     _sessionTimers.add(timer);
   }
@@ -351,6 +378,7 @@ class RobotConnection {
   }
 
   void disconnect({String reason = 'Connessione chiusa'}) {
+    final epoch = _session;
     ++_session; // Invalidates connect futures, callbacks and delayed work first.
     _watchdog?.cancel();
     _watchdog = null;
@@ -363,8 +391,9 @@ class RobotConnection {
     final current = _socket;
     _subscription = null;
     _socket = null;
-    if (subscription != null) unawaited(subscription.cancel());
-    current?.destroy();
+    if (subscription != null)
+      unawaited(_cancelSubscription(subscription, epoch));
+    if (current != null) _destroySocket(current, epoch);
     _lastMessageAt = null;
     _lastStatusAt = null;
     _statusIntervals.clear();
@@ -380,7 +409,28 @@ class RobotConnection {
   void _setState(RobotConnectionState state, String reason) {
     _state = state;
     onLog('[CONNECTION session=$_session] ${state.name}: $reason');
-    onStateChanged(state, reason);
+    try {
+      onStateChanged(state, reason);
+    } catch (e, s) {
+      onLog('[STATE CALLBACK session=$_session] Errore gestito: $e\n$s');
+    }
+  }
+
+  Future<void> _cancelSubscription(
+      StreamSubscription<String> subscription, int epoch) async {
+    try {
+      await subscription.cancel();
+    } catch (e, s) {
+      onLog('[TCP CANCEL session=$epoch] Errore gestito: $e\n$s');
+    }
+  }
+
+  void _destroySocket(Socket current, int epoch) {
+    try {
+      current.destroy();
+    } catch (e, s) {
+      onLog('[TCP CLOSE session=$epoch] Errore gestito: $e\n$s');
+    }
   }
 
   void dispose() {

@@ -19,6 +19,8 @@ class Fixture {
 
   Fixture(WidgetTester tester,
       {RobotSocketConnector? connector,
+      void Function(RobotConnectionState, String)? onStateChanged,
+      void Function(RobotCommandReceipt)? onCommandChanged,
       void Function(Map<String, dynamic>)? onMessage}) {
     connection = RobotConnection(
       now: () => tester.binding.clock.now(),
@@ -33,8 +35,11 @@ class Fixture {
         received.add(message);
         onMessage?.call(message);
       },
-      onStateChanged: (_, __) {},
-      onCommandChanged: changes.add,
+      onStateChanged: onStateChanged ?? (_, __) {},
+      onCommandChanged: (receipt) {
+        changes.add(receipt);
+        onCommandChanged?.call(receipt);
+      },
       onLog: logs.add,
     );
     addTearDown(connection.dispose);
@@ -44,6 +49,127 @@ class Fixture {
 }
 
 void main() {
+  testWidgets('connection refused errno 61 is handled and retries continue',
+      (tester) async {
+    var attempts = 0;
+    final recovered = FakeRobotSocket();
+    final f = Fixture(tester, connector: (_, __, ___) async {
+      if (++attempts <= 3) {
+        throw SocketException('Connection refused',
+            osError: const OSError('Connection refused', 61),
+            address: InternetAddress('192.168.10.130'),
+            port: 58771);
+      }
+      return recovered;
+    });
+    f.connection.startReconnecting('robot');
+    await f.connection.connect('robot');
+    for (var i = 0; i < 3; i++) {
+      expect(f.connection.state, RobotConnectionState.disconnected);
+      await tester.pump(const Duration(seconds: 5));
+    }
+    expect(f.attempts, 4);
+    expect(f.connection.socket, same(recovered));
+    expect(
+        f.logs.where((line) =>
+            line.contains('[CONNECT') &&
+            line.contains('Errore gestito') &&
+            line.contains('errno = 61')),
+        hasLength(3));
+    f.connection.dispose();
+  });
+
+  testWidgets('setup failure consumes output error and permits another attempt',
+      (tester) async {
+    final broken = FakeRobotSocket()..failSetup = true;
+    final recovered = FakeRobotSocket();
+    var attempts = 0;
+    final f = Fixture(tester,
+        connector: (_, __, ___) async => attempts++ == 0 ? broken : recovered);
+    await f.connection.connect('robot');
+    await tester.pump();
+    expect(broken.destroyed, isTrue);
+    expect(f.connection.socket, isNull);
+    await f.connection.connect('robot');
+    expect(f.connection.socket, same(recovered));
+    f.connection.dispose();
+  });
+
+  testWidgets('async cancellation and destroy errors cannot interrupt cleanup',
+      (tester) async {
+    final broken = FakeRobotSocket()
+      ..failCancel = true
+      ..failDestroy = true;
+    final f = Fixture(tester, connector: (_, __, ___) async => broken);
+    await f.connection.connect('robot');
+    await tester.pump();
+    final receipt = f.connection.send({'f': 'MOVE'});
+    f.connection.disconnect();
+    await tester.pump();
+    expect(f.connection.state, RobotConnectionState.disconnected);
+    expect(f.connection.socket, isNull);
+    expect((await receipt.completed).status, RobotCommandStatus.unknown);
+    expect(f.logs.any((line) => line.contains('[TCP CANCEL')), isTrue,
+        reason: f.logs.join('\n'));
+    expect(f.logs.any((line) => line.contains('[TCP CLOSE')), isTrue);
+    f.connection.dispose();
+  });
+
+  testWidgets('notification errors do not kill connection or command timeouts',
+      (tester) async {
+    final f = Fixture(tester,
+        onStateChanged: (_, __) => throw StateError('state callback'),
+        onCommandChanged: (_) => throw StateError('command callback'));
+    await f.connection.connect('robot');
+    final receipt = f.connection.send({'f': 'PAUSE'});
+    expect(f.connection.socket, isNotNull);
+    await tester.pump(const Duration(seconds: 16));
+    expect(receipt.outcome.status, RobotCommandStatus.unknown);
+    expect(f.logs.any((line) => line.contains('[STATE CALLBACK')), isTrue);
+    expect(f.logs.any((line) => line.contains('[COMMAND CALLBACK')), isTrue);
+    f.connection.dispose();
+  });
+
+  testWidgets('scheduled async actions and UI failures are handled',
+      (tester) async {
+    final f = Fixture(tester);
+    await f.connection.connect('robot');
+    f.connection.runAction(() => throw StateError('sync action'));
+    f.connection.schedule(const Duration(seconds: 1), () async {
+      await Future<void>.delayed(Duration.zero);
+      throw StateError('async action');
+    });
+    var subsequentUiRan = false;
+    f.connection.enqueueUiWork(() async => throw StateError('webview'));
+    f.connection.enqueueUiWork(() async {
+      subsequentUiRan = true;
+    });
+    await tester.pump(const Duration(seconds: 1));
+    expect(f.logs.any((line) => line.contains('sync action')), isTrue);
+    expect(f.logs.any((line) => line.contains('async action')), isTrue);
+    expect(f.logs.any((line) => line.contains('webview')), isTrue);
+    expect(subsequentUiRan, isTrue);
+    f.connection.dispose();
+  });
+
+  testWidgets('invalid UTF8 closes just the socket and the next session works',
+      (tester) async {
+    final f = Fixture(tester);
+    await f.connection.connect('robot');
+    f.socket.input.add(Uint8List.fromList([0xff]));
+    await tester.pump();
+    expect(f.connection.socket, isNull);
+    expect(
+        f.logs.any((line) =>
+            line.contains('[TCP INPUT') && line.contains('Errore gestito')),
+        isTrue);
+    await f.connection.connect('robot');
+    f.socket.message({'f': 'RobotInfo'});
+    await tester.pump();
+    expect(f.received.single['MSG']['f'], 'RobotInfo');
+    f.connection.dispose();
+  });
+
   test('JSON framing handles every split, concatenation, quotes and escapes',
       () {
     final objects = [

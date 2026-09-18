@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:developer';
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -652,7 +651,7 @@ class LaserPageController {
   }
 
   void _logWeldUiState({required String sourceStatus}) {
-    debugPrint(
+    printLog(
       '[WELD_UI] status=$weldingStatus sourceStatus=$sourceStatus '
       'canPause=$canPauseWelding canResume=$canResumeWelding '
       'canStop=$canStopWelding visible=$isWeldingControlsVisible paused=$paused',
@@ -865,6 +864,8 @@ class LaserPageController {
 
   // Log Window - Start
   String logString = "";
+  final ValueNotifier<String> logNotifier = ValueNotifier('');
+  Timer? _logPublishTimer;
   String lastLogMessage = "";
   bool showLogWindow = false;
   double logWindowLeftPosition = 0.0;
@@ -910,8 +911,6 @@ class LaserPageController {
   Socket? get socket => _robotConnection.socket;
   bool isDisposing = false;
   final List<RobotCommandReceipt> robotCommandHistory = [];
-  String? robotCommunicationWarning;
-  String robotConnectionDescription = 'Robot disconnesso';
   int? _pendingControlReceiptId;
   bool _modeScheduledForSession = false;
   late final RobotConnection _robotConnection = RobotConnection(
@@ -924,7 +923,6 @@ class LaserPageController {
 
   void _onRobotConnectionChanged(RobotConnectionState state, String reason) {
     // Transport state must update even when no widget is mounted.
-    robotConnectionDescription = reason;
     connectionStatus = state == RobotConnectionState.awaitingData ||
         state == RobotConnectionState.online;
     isConnectingToRobot = state == RobotConnectionState.connecting;
@@ -956,8 +954,6 @@ class LaserPageController {
     }
     if (status == RobotCommandStatus.notSent ||
         status == RobotCommandStatus.unknown) {
-      robotCommunicationWarning =
-          '${receipt.command}: ${receipt.outcome.reason}';
       if (isControl &&
           (status == RobotCommandStatus.notSent ||
               _pendingControlReceiptId == receipt.id)) {
@@ -966,11 +962,6 @@ class LaserPageController {
     }
     printLog('[COMANDO #${receipt.id} sessione=${receipt.session}] '
         '${receipt.command}: ${receipt.outcome.reason}');
-    mySetState?.call(() {});
-  }
-
-  void dismissRobotCommunicationWarning() {
-    robotCommunicationWarning = null;
     mySetState?.call(() {});
   }
 
@@ -1096,7 +1087,7 @@ class LaserPageController {
   int dashboardResetVersion = 0;
 
   void onInit() {
-    print("INITTTT");
+    printLog("INITTTT");
     if (!initialized) {
       initialized = true;
     } else {
@@ -1162,11 +1153,15 @@ class LaserPageController {
   }
 
   void onDispose() {
+    if (isDisposing) return;
     isDisposing = true;
+    _logPublishTimer?.cancel();
+    _logPublishTimer = null;
     context = null;
     mySetState = null;
     webviewDispatchFlutterMessage = null;
     _robotConnection.dispose();
+    logNotifier.dispose();
   }
 
   void setScrollViewEnabledScrolling({required newValue}) {
@@ -1736,7 +1731,7 @@ class LaserPageController {
   // * - * - * - * - * - * - * - * - * - *  Laser Globals - End - * - * - * - * - * - * - * - * - * - *
 
   Future<void> connettiRobot() async {
-    print("CONNETTI ROBOT");
+    printLog("CONNETTI ROBOT");
     await startConnection();
   }
 
@@ -1807,7 +1802,7 @@ class LaserPageController {
   /// IS SAFE POSITION THERE
   bool get effectiveHasSafePosition {
     final hasSafe = robotSafePositionFlagNotifier.value == true;
-    debugPrint(
+    printLog(
       '[SAFE_TRACE][HAS] robotFlag=${robotSafePositionFlagNotifier.value} '
       'local=${currentSafePosition != null} resolved=$hasSafe',
     );
@@ -1816,12 +1811,12 @@ class LaserPageController {
   }
 
   Map<String, dynamic>? _normalizeSafePositionPayload(dynamic rawSafePosition) {
-    debugPrint(
+    printLog(
       '[SAFE_TRACE][NORMALIZE][IN] type=${rawSafePosition.runtimeType} value=$rawSafePosition',
     );
 
     if (rawSafePosition == null || rawSafePosition == false) {
-      debugPrint('[SAFE_TRACE][NORMALIZE][OUT] null (raw null/false)');
+      printLog('[SAFE_TRACE][NORMALIZE][OUT] null (raw null/false)');
       return null;
     }
 
@@ -1831,30 +1826,29 @@ class LaserPageController {
       if (trimmed.isEmpty ||
           trimmed.toLowerCase() == 'false' ||
           trimmed.toLowerCase() == 'null') {
-        debugPrint(
-            '[SAFE_TRACE][NORMALIZE][OUT] null (string empty/false/null)');
+        printLog('[SAFE_TRACE][NORMALIZE][OUT] null (string empty/false/null)');
         return null;
       }
       try {
         candidate = json.decode(trimmed);
       } catch (_) {
-        debugPrint('[SAFE_TRACE][NORMALIZE][OUT] null (string not json)');
+        printLog('[SAFE_TRACE][NORMALIZE][OUT] null (string not json)');
         return null;
       }
     }
 
     if (candidate is! Map) {
-      debugPrint('[SAFE_TRACE][NORMALIZE][OUT] null (not map)');
+      printLog('[SAFE_TRACE][NORMALIZE][OUT] null (not map)');
       return null;
     }
 
     final normalized = Map<String, dynamic>.from(candidate);
     if (normalized.isEmpty) {
-      debugPrint('[SAFE_TRACE][NORMALIZE][OUT] null (empty map)');
+      printLog('[SAFE_TRACE][NORMALIZE][OUT] null (empty map)');
       return null;
     }
 
-    debugPrint('[SAFE_TRACE][NORMALIZE][OUT] map=$normalized');
+    printLog('[SAFE_TRACE][NORMALIZE][OUT] map=$normalized');
     return normalized;
   }
 
@@ -1872,7 +1866,7 @@ class LaserPageController {
     }
 
     final derived = _normalizeSafePositionPayload(rawSafePosition) != null;
-    debugPrint(
+    printLog(
       '[SAFE_TRACE][FLAG] derived=$derived type=${rawSafePosition.runtimeType} value=$rawSafePosition',
     );
     return derived;
@@ -1882,7 +1876,7 @@ class LaserPageController {
     final normalizedRobotSafePosition =
         _normalizeSafePositionPayload(robotSafePositionCurrentRaw);
     if (normalizedRobotSafePosition != null) {
-      debugPrint(
+      printLog(
         '[SAFE_TRACE][PAYLOAD] source=robot value=$normalizedRobotSafePosition',
       );
       return normalizedRobotSafePosition;
@@ -1891,18 +1885,18 @@ class LaserPageController {
     final normalizedAppSafePosition =
         _normalizeSafePositionPayload(appSafePositionMemoryRaw);
     if (normalizedAppSafePosition != null) {
-      debugPrint(
+      printLog(
         '[SAFE_TRACE][PAYLOAD] source=app-memory value=$normalizedAppSafePosition',
       );
       return normalizedAppSafePosition;
     }
 
-    debugPrint('[SAFE_TRACE][PAYLOAD] source=none value=null');
+    printLog('[SAFE_TRACE][PAYLOAD] source=none value=null');
     return null;
   }
 
   void _storeRobotSafePositionCurrent(dynamic rawSafePosition) {
-    debugPrint(
+    printLog(
       '[SAFE_TRACE][ROBOT_STATUS_SAFE][IN] type=${rawSafePosition.runtimeType} value=$rawSafePosition',
     );
     final normalizedSafePosition =
@@ -1911,7 +1905,7 @@ class LaserPageController {
       robotSafePositionCurrentRaw = normalizedSafePosition;
       appSafePositionMemoryRaw = normalizedSafePosition;
       robotSafePositionFlagNotifier.value = true;
-      debugPrint(
+      printLog(
         '[SAFE_TRACE][ROBOT_STATUS_SAFE][STORE] storedMap=$normalizedSafePosition appMemory=$appSafePositionMemoryRaw flag=true',
       );
       return;
@@ -1922,7 +1916,7 @@ class LaserPageController {
     if (robotSafePositionFlagNotifier.value != true) {
       robotSafePositionCurrentRaw = null;
     }
-    debugPrint(
+    printLog(
       '[SAFE_TRACE][ROBOT_STATUS_SAFE][STORE] storedMap=$robotSafePositionCurrentRaw '
       'appMemory=$appSafePositionMemoryRaw '
       'flag=${robotSafePositionFlagNotifier.value}',
@@ -1931,15 +1925,15 @@ class LaserPageController {
 
   Future<void> _restoreSafePositionOnHomeReachIfAvailable() async {
     final send = _sessionSender();
-    debugPrint('[SAFE_TRACE][RESTORE][HOME] trigger=HOMEREACH');
+    printLog('[SAFE_TRACE][RESTORE][HOME] trigger=HOMEREACH');
     final currentValue = _safePositionPayloadForRobotCommands();
     if (currentValue == null) {
-      debugPrint('[SAFE_TRACE][RESTORE][HOME] skip=no valid payload');
+      printLog('[SAFE_TRACE][RESTORE][HOME] skip=no valid payload');
       return;
     }
 
-    debugPrint('[SAFE_TRACE][RESTORE][HOME] send payload=$currentValue');
-    debugPrint(
+    printLog('[SAFE_TRACE][RESTORE][HOME] send payload=$currentValue');
+    printLog(
       '[SAFE_TRACE][RESTORE][TX] sending RESTORESAFEPOSITION with current=$currentValue',
     );
 
@@ -2053,7 +2047,7 @@ class LaserPageController {
       // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
       // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
 
-      print(j);
+      printLog(j);
 
       if (j['MSG'] != null) {
         // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
@@ -2088,11 +2082,11 @@ class LaserPageController {
                 _modeScheduledForSession = true;
                 // Preserve the robot startup grace period without blocking RX.
                 _robotConnection.schedule(const Duration(milliseconds: 1500),
-                    () {
-                  unawaited(sendMessageToRobot({
+                    () async {
+                  await sendMessageToRobot({
                     "f": "SETMODE",
                     "tipo_controrotaia": controrotaiaModeValue,
-                  }));
+                  });
                 });
               }
               break;
@@ -2133,13 +2127,13 @@ class LaserPageController {
               // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
               // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
 
-              print("POSITON J ARRAY: $positionJArray");
+              printLog("POSITON J ARRAY: $positionJArray");
 
               // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
               // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
               // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
 
-              print("GETPOINT: ${j['MSG']}");
+              printLog("GETPOINT: ${j['MSG']}");
 
               // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
               // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
@@ -2148,7 +2142,7 @@ class LaserPageController {
               if (point != null) {
                 final pointParsed = Point.fromJson(point);
                 pointParsed.positionJ = pointj;
-                print("FINAL POINT: ${pointParsed.toJson()}");
+                printLog("FINAL POINT: ${pointParsed.toJson()}");
                 final recalculatedDashboardPosition =
                     dashboardCalculatePointPosition?.call(
                   pointParsed.x,
@@ -2252,7 +2246,7 @@ class LaserPageController {
               break;
             case 'SafePosition':
               try {
-                print(json.encode(j));
+                printLog(json.encode(j));
 
                 final msg = j['MSG'] as Map<String, dynamic>;
                 final orientation =
@@ -2277,15 +2271,15 @@ class LaserPageController {
                 _storeRobotSafePositionCurrent(safePosition.toJson());
                 // Snackbar rimosso
               } catch (e) {
-                print(e);
+                printLog(e);
                 // Snackbar rimosso
               }
               break;
             case 'ResetSafePosition':
-              debugPrint(
+              printLog(
                 '[SAFE_POSITION][RX] Comando resetSafePosition ricevuto, elimino safe position locale',
               );
-              unawaited(deleteSafePosition());
+              _robotConnection.runAction(() => deleteSafePosition());
               break;
             case 'FrameState':
               try {
@@ -2299,7 +2293,7 @@ class LaserPageController {
                 _updateFrameValidationFromCurrentState(
                     reason: msg['frameReason']?.toString());
               } catch (e) {
-                print("FRAME STATE ERROR: $e");
+                printLog("FRAME STATE ERROR: $e");
               }
               break;
             case 'FrameChanged':
@@ -2314,25 +2308,25 @@ class LaserPageController {
                 _updateFrameValidationFromCurrentState(
                     reason: msg['frameReason']?.toString());
               } catch (e) {
-                print("FRAME CHANGED ERROR: $e");
+                printLog("FRAME CHANGED ERROR: $e");
               }
               break;
             case 'RobotStatus':
-              print(j['MSG']);
+              printLog(j['MSG']);
               try {
-                print(
+                printLog(
                     "[ROBOT_STATUS] raw MSG keys: ${(j['MSG'] as Map?)?.keys.toList()}");
-                print("[ROBOT_STATUS] raw MSG: ${j['MSG']}");
+                printLog("[ROBOT_STATUS] raw MSG: ${j['MSG']}");
 
                 // Aggiorna il flag SafePosition del robot se presente nel messaggio.
                 final rawSafeFlag = j['MSG']['SafePosition'];
                 if ((j['MSG'] as Map).containsKey('SafePosition')) {
-                  debugPrint(
+                  printLog(
                     '[SAFE_TRACE][ROBOT_STATUS] SafePosition field present value=$rawSafeFlag',
                   );
                   _storeRobotSafePositionCurrent(rawSafeFlag);
                 } else {
-                  debugPrint(
+                  printLog(
                     '[SAFE_TRACE][ROBOT_STATUS] SafePosition field missing, keep previous map=$robotSafePositionCurrentRaw flag=${robotSafePositionFlagNotifier.value}',
                   );
                 }
@@ -2370,7 +2364,7 @@ class LaserPageController {
                 }
 
                 if (robotStatus == 'HOMEREACH') {
-                  debugPrint(
+                  printLog(
                     '[SAFE_TRACE][HOMEREACH][RX] RobotStatus HOMEREACH received armPosition=$incomingArmPosition',
                   );
                   final homePosition = _parseRobotPositionList(
@@ -2416,7 +2410,8 @@ class LaserPageController {
                   lastFrameReason = 'HOMEREACH';
                   _updateFrameValidationFromCurrentState(reason: 'HOMEREACH');
 
-                  unawaited(_restoreSafePositionOnHomeReachIfAvailable());
+                  _robotConnection
+                      .runAction(_restoreSafePositionOnHomeReachIfAvailable);
 
                   break;
                 }
@@ -2531,7 +2526,7 @@ class LaserPageController {
             case "ArmPositionStatus":
               final currentArmPosition = j["MSG"]["Status"];
 
-              // print(
+              // printLog(
               //     " - - - - - - - - - - - - - - -> ARM POSITION: $currentArmPosition");
 
               if (currentArmPosition == "DX") {
@@ -2557,7 +2552,7 @@ class LaserPageController {
                       armPosition!); // ci va posizione robot
                 }
               } else {
-                //print("Arm Position IS NULL");
+                //printLog("Arm Position IS NULL");
               }
 
               break;
@@ -2633,7 +2628,7 @@ class LaserPageController {
                         .eseguito = false;
                   });
                 } catch (e) {
-                  print(e);
+                  printLog(e);
                 }
               }
               break;
@@ -2674,9 +2669,10 @@ class LaserPageController {
   }
 
   void gasTouchedUp() {
-    _robotConnection.schedule(Duration(seconds: GAS_WIRE_TIMEOUT_SECONDS), () {
+    _robotConnection.schedule(Duration(seconds: GAS_WIRE_TIMEOUT_SECONDS),
+        () async {
       isGasActive = false;
-      unawaited(sendMessageToRobot({"f": "GAS-OFF"}));
+      await sendMessageToRobot({"f": "GAS-OFF"});
     });
   }
 
@@ -2694,9 +2690,10 @@ class LaserPageController {
   }
 
   void filoTouchedUp() {
-    _robotConnection.schedule(Duration(seconds: GAS_WIRE_TIMEOUT_SECONDS), () {
+    _robotConnection.schedule(Duration(seconds: GAS_WIRE_TIMEOUT_SECONDS),
+        () async {
       isWireActive = false;
-      unawaited(sendMessageToRobot({"f": "WIRE-OFF"}));
+      await sendMessageToRobot({"f": "WIRE-OFF"});
     });
   }
 
@@ -2766,17 +2763,17 @@ class LaserPageController {
   }
 
   void printCurrentStratiEseguiti(String title) {
-    print("");
-    print("");
-    print(title);
+    printLog("");
+    printLog("");
+    printLog(title);
     stratiEseguiti.forEach((key, value) {
       for (var element in value) {
-        print(
+        printLog(
             " - - - > eseguito: ${element.eseguito}, durata: ${element.durata}");
       }
     });
-    print("");
-    print("");
+    printLog("");
+    printLog("");
   }
 
   List<StratoLaser>? get currentStratiEseguiti {
@@ -2802,7 +2799,7 @@ class LaserPageController {
 
     if (point.positionJ != null) {
       final messageMoveTo = {"f": "MOVETO", "point": point.positionJ!.toJson()};
-      print("[MOVETO] : $messageMoveTo");
+      printLog("[MOVETO] : $messageMoveTo");
       await send(messageMoveTo);
     }
   }
@@ -2812,7 +2809,7 @@ class LaserPageController {
     // se è il d_start e il movimento è assistito devo chiedere le dimensioni del frame
     if (e == "d_start" &&
         controllerMode == LaserControllerMode.movimentoAssistito) {
-      print("[getPoint] PASSO QUI 1");
+      printLog("[getPoint] PASSO QUI 1");
       final framesetResult = await showDialog(
           barrierDismissible: false,
           context: context,
@@ -2821,7 +2818,7 @@ class LaserPageController {
               heightController: frameHeightController));
 
       if (framesetResult == 'confirm') {
-        print("[getPoint] SETPOINT $e");
+        printLog("[getPoint] SETPOINT $e");
         await send({
           "f": "SETPOINT",
           "point": e,
@@ -2833,8 +2830,8 @@ class LaserPageController {
         });
       }
     } else {
-      print("[getPoint] PASSO QUI 2");
-      print("[getPoint] $e");
+      printLog("[getPoint] PASSO QUI 2");
+      printLog("[getPoint] $e");
       await send({
         "f": "SETPOINT",
         "point": e,
@@ -3848,14 +3845,22 @@ class LaserPageController {
     });
   }
 
-  void printLog(String log) {
-    if (log.trim() == lastLogMessage.trim()) return;
+  /// The single logging entry point for the laser page and robot transport.
+  /// Publishing only the log window avoids rebuilding the robot controls and
+  /// also permits logs from getters called during a widget build.
+  void printLog(Object? value) {
+    final log = value?.toString() ?? 'null';
+    if (log.trim().isEmpty || log.trim() == lastLogMessage.trim()) return;
     lastLogMessage = log;
     final entry = '${DateTime.now().toIso8601String()} $log';
     debugPrint(entry);
     logString = '$entry\n$logString';
     if (logString.length > 32000) logString = logString.substring(0, 32000);
-    mySetState?.call(() {});
+    if (isDisposing) return;
+    _logPublishTimer ??= Timer(const Duration(milliseconds: 100), () {
+      _logPublishTimer = null;
+      if (!isDisposing) logNotifier.value = logString;
+    });
   }
 
   void setMoveToTrue() {
@@ -3997,21 +4002,21 @@ class LaserPageController {
   }
 
   Future<void> sendPointsToFastAPI() async {
-    print('[interpola] sendPointsToFastAPI triggered');
+    printLog('[interpola] sendPointsToFastAPI triggered');
     if (context == null) {
-      print('[interpola] aborted: context is null');
+      printLog('[interpola] aborted: context is null');
       return;
     }
 
     if (armPosition == null) {
-      print('[interpola] aborted: armPosition is null');
+      printLog('[interpola] aborted: armPosition is null');
       return;
     }
 
     if (!effectiveHasSafePosition) {
       Messenger.showMessageGenericError(
           context, "Safe Position non impostata", 2);
-      print('[interpola] aborted: safe position not set');
+      printLog('[interpola] aborted: safe position not set');
       return;
     }
 
@@ -4134,33 +4139,33 @@ class LaserPageController {
       final pointsToSend = jsonEncode(payload);
       final interpolaUrl = _fastApiUrl(cloud: modalitaNuvola);
       lastInterpolaUrl = interpolaUrl;
-      print(
+      printLog(
           ">>>INTERPOLA_REQUEST<<< url=$interpolaUrl | headers={Content-Type: application/json}");
       const chunkSize0 = 800;
       for (var i0 = 0; i0 < pointsToSend.length; i0 += chunkSize0) {
         final end0 = (i0 + chunkSize0 < pointsToSend.length)
             ? i0 + chunkSize0
             : pointsToSend.length;
-        print(
+        printLog(
             ">>>INTERPOLA_REQUEST<<< body[$i0-$end0] ${pointsToSend.substring(i0, end0)}");
       }
       final response = await http.post(Uri.parse(interpolaUrl),
           headers: {"Content-Type": "application/json"}, body: pointsToSend);
 
-      print("[interpola] responseStatusCode=${response.statusCode}");
-      print("[interpola] responseBody=${response.body}");
-      print("[genera punti] status ${response.statusCode}");
-      print("${response.statusCode}");
+      printLog("[interpola] responseStatusCode=${response.statusCode}");
+      printLog("[interpola] responseBody=${response.body}");
+      printLog("[genera punti] status ${response.statusCode}");
+      printLog("${response.statusCode}");
       //
       //
       final bodyStr = response.body;
-      log(bodyStr);
+      printLog(bodyStr);
       lastInterpolaResponseNotifier.value = bodyStr;
       const chunkSize = 800;
       for (var i = 0; i < bodyStr.length; i += chunkSize) {
         final end =
             (i + chunkSize < bodyStr.length) ? i + chunkSize : bodyStr.length;
-        print("[genera punti] body[$i-$end] ${bodyStr.substring(i, end)}");
+        printLog("[genera punti] body[$i-$end] ${bodyStr.substring(i, end)}");
       }
 
       if (response.isSuccess) {
@@ -4191,7 +4196,7 @@ class LaserPageController {
           final end = (i + chunkSize < scriptStr.length)
               ? i + chunkSize
               : scriptStr.length;
-          print(
+          printLog(
               "[genera punti] script[$i-$end] ${scriptStr.substring(i, end)}");
         }
       } else {
@@ -4200,9 +4205,9 @@ class LaserPageController {
       }
     } catch (e, stackTrace) {
       if (lastInterpolaUrl != null) {
-        print('[interpola] failedUrl=$lastInterpolaUrl');
+        printLog('[interpola] failedUrl=$lastInterpolaUrl');
       }
-      print("ip: $e");
+      printLog("ip: $e");
       final isConnectionRefused =
           e.toString().toLowerCase().contains('connection refused');
       if (isConnectionRefused && context != null) {
@@ -4212,9 +4217,9 @@ class LaserPageController {
           3,
         );
       }
-      print("[genera punti] errorType ${e.runtimeType}");
-      print("[genera punti] error ${e.toString()}");
-      print("[genera punti] stackTrace $stackTrace");
+      printLog("[genera punti] errorType ${e.runtimeType}");
+      printLog("[genera punti] error ${e.toString()}");
+      printLog("[genera punti] stackTrace $stackTrace");
     } finally {
       mySetState?.call(() {
         sendingSimulationPoints = false;
@@ -4494,7 +4499,7 @@ class LaserPageController {
 
   Future<void> sendSetSafePosition({bool askConfirmation = true}) async {
     final send = _sessionSender();
-    debugPrint(
+    printLog(
       '[SET_SAFE_POSITION] Richiesta impostazione safe position ricevuta '
       'askConfirmation=$askConfirmation armPosition=$armPosition '
       'robotJT=[${posizioneRobot.jt1}, ${posizioneRobot.jt2}, ${posizioneRobot.jt3}, ${posizioneRobot.jt4}, ${posizioneRobot.jt5}, ${posizioneRobot.jt6}]',
@@ -4510,11 +4515,11 @@ class LaserPageController {
             false
         : true;
 
-    debugPrint('[SET_SAFE_POSITION] Esito conferma=$confirmed');
+    printLog('[SET_SAFE_POSITION] Esito conferma=$confirmed');
 
     if (confirmed) {
       if (armPosition == null) {
-        debugPrint(
+        printLog(
           '[SET_SAFE_POSITION] BLOCCO: armPosition null, impossibile impostare safe position',
         );
         Messenger.infoDialog(context, "Attenzione",
@@ -4534,17 +4539,17 @@ class LaserPageController {
         ],
       );
 
-      debugPrint(
+      printLog(
         '[SET_SAFE_POSITION] Posizione candidata locale '
         'orientation=${fallbackSafePosition.orientation} '
         'position=${fallbackSafePosition.position}',
       );
 
       const payload = {"f": "SETSAFEPOSITION"};
-      debugPrint('[SET_SAFE_POSITION] Payload comando robot: $payload');
+      printLog('[SET_SAFE_POSITION] Payload comando robot: $payload');
 
       await send(payload);
-      debugPrint(
+      printLog(
         '[SET_SAFE_POSITION] Richiesta terminata; esito nel registro comandi',
       );
       // Snackbar rimosso
@@ -4555,28 +4560,28 @@ class LaserPageController {
     final send = _sessionSender();
     final payload = {"f": "GOTOSAFEPOSITION"};
     final safePosition = currentSafePosition;
-    debugPrint(
+    printLog(
       '[SAFE_POSITION][GO] Richiesta VAI ricevuta '
       'armPosition=$armPosition '
       'safeOrientation=${safePosition?.orientation} '
       'safePosition=${safePosition?.position}',
     );
-    debugPrint('[SAFE_POSITION][GO] Payload comando robot: $payload');
+    printLog('[SAFE_POSITION][GO] Payload comando robot: $payload');
     await send(payload);
-    debugPrint('[SAFE_POSITION][GO] Esito nel registro comandi');
+    printLog('[SAFE_POSITION][GO] Esito nel registro comandi');
   }
 
   void loadSafePosition() {
-    debugPrint('[SAFE_TRACE][LOCAL][LOAD] disabled');
+    printLog('[SAFE_TRACE][LOCAL][LOAD] disabled');
   }
 
   void saveSafePosition() {
-    debugPrint('[SAFE_TRACE][LOCAL][SAVE] disabled');
+    printLog('[SAFE_TRACE][LOCAL][SAVE] disabled');
   }
 
   Future<void> deleteSafePosition({bool notifyRobot = true}) async {
     final send = _sessionSender();
-    debugPrint('[SAFE_TRACE][LOCAL][DELETE] clear local+robot cache');
+    printLog('[SAFE_TRACE][LOCAL][DELETE] clear local+robot cache');
     safePositionNotifier.value = null;
     robotSafePositionCurrentRaw = null;
     appSafePositionMemoryRaw = null;
@@ -4603,9 +4608,9 @@ class LaserPageController {
       return;
     }
 
-    print("[getPoint] addCurrentPoint");
+    printLog("[getPoint] addCurrentPoint");
     Offset? dashboardPosition = dashboardGetPoint?.call();
-    print("[getPoint] dashboardPosition: $dashboardPosition");
+    printLog("[getPoint] dashboardPosition: $dashboardPosition");
 
     if (dashboardPosition != null) {
       //
@@ -4637,7 +4642,7 @@ class LaserPageController {
           j2: posizioneRobot.j2,
           j3: posizioneRobot.j3,
           dashboardPosition: dashboardPosition);
-      print("[getPoint] SETPOINT CALLED");
+      printLog("[getPoint] SETPOINT CALLED");
       _setCanTakePoint(false);
       try {
         await send({
@@ -4662,7 +4667,7 @@ class LaserPageController {
       // Il punto viene aggiornato/rimbalzato solo all'ack getPoint del robot.
     } else {
       _setCanTakePoint(true);
-      print("DASHBOARD POSITION IS NULL!!!");
+      printLog("DASHBOARD POSITION IS NULL!!!");
     }
   }
 

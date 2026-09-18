@@ -83,9 +83,14 @@ class _LaserLogWindowState extends State<LaserLogWindow> {
                 borderRadius: BorderRadius.circular(10.0)),
             child: Padding(
               padding: const EdgeInsets.all(8.0),
-              child: Text(
-                widget.controller.logString,
-                style: TextStyle(color: Colors.green),
+              child: ValueListenableBuilder<String>(
+                valueListenable: widget.controller.logNotifier,
+                builder: (context, _, __) => SingleChildScrollView(
+                  child: Text(
+                    widget.controller.logString,
+                    style: const TextStyle(color: Colors.green),
+                  ),
+                ),
               ),
             ),
           ),

@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grw_laser/configuration/constants.dart';
-import 'package:grw_laser/pages/laser_page/components/laser_communication_status.dart';
+import 'package:grw_laser/pages/laser_page/components/laser_log_window.dart';
 import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
 import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_settings.dart';
 import 'package:grw_laser/pages/laser_page_hub/laser_page_hub_controller.dart';
@@ -49,6 +49,45 @@ void main() {
     addTearDown(result.onDispose);
     return result;
   }
+
+  testWidgets('logs refresh their window without rebuilding robot controls',
+      (tester) async {
+    final c = controller(<FakeRobotSocket>[]);
+    var pageUpdates = 0;
+    c.mySetState = (callback) {
+      pageUpdates++;
+      callback?.call();
+    };
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+          body: Stack(children: [
+        Builder(builder: (context) {
+          c.printLog('Log durante build');
+          return const SizedBox.shrink();
+        }),
+        LaserLogWindow(controller: c),
+      ])),
+    ));
+    for (var i = 0; i < 80; i++) {
+      c.printLog('Risposta robot $i');
+    }
+    c.printLog({
+      'MSG': {'f': 'RobotInfo'}
+    });
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(pageUpdates, 0);
+    expect(find.textContaining('Risposta robot 79'), findsOneWidget);
+    expect(find.textContaining('RobotInfo'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    final scrollable = tester.state<ScrollableState>(find.byType(Scrollable));
+    expect(scrollable.position.maxScrollExtent, greaterThan(0));
+    c.onDispose();
+    // Late diagnostic callbacks may record a message but must not notify
+    // disposed widgets or schedule another publication timer.
+    c.printLog('Log dopo chiusura');
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('listening grace period does not block following robot status',
       (tester) async {
@@ -98,7 +137,7 @@ void main() {
     c.onDispose();
   });
 
-  testWidgets('timeout clears pending control and is visible in UI',
+  testWidgets('timeout clears pending control and appears only in log window',
       (tester) async {
     final c = controller(<FakeRobotSocket>[]);
     await c.startConnection();
@@ -108,16 +147,14 @@ void main() {
     await tester.pump(const Duration(seconds: 16));
     expect(receipt.outcome.status, RobotCommandStatus.unknown);
     expect(c.isPausingResuming, isFalse);
-    expect(c.robotCommunicationWarning, contains('esecuzione sconosciuta'));
+    expect(c.logString, contains('esecuzione sconosciuta'));
     await tester.pumpWidget(MaterialApp(
         home: Scaffold(
-      body: LaserCommunicationStatus(controller: c),
+      body: Stack(children: [LaserLogWindow(controller: c)]),
     )));
-    expect(find.textContaining('Esito sconosciuto'), findsOneWidget);
+    expect(find.textContaining('esecuzione sconosciuta'), findsOneWidget);
     expect(find.textContaining('Comando non reinviato'), findsOneWidget);
-    await tester.tap(find.text('Dettagli'));
-    await tester.pumpAndSettle();
-    expect(find.text('Comunicazione con il robot'), findsOneWidget);
+    expect(find.text('Dettagli'), findsNothing);
     expect(tester.takeException(), isNull);
     c.onDispose();
   });

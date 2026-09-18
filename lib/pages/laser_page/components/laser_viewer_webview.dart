@@ -170,7 +170,7 @@ class _LaserViewerWebviewState extends State<LaserViewerWebview>
         _viewerError = e.toString();
       });
       if (Constants.LASER_DEBUG) {
-        print('[laser_native_viewer] load error: $e');
+        widget.controller.printLog('[laser_native_viewer] load error: $e');
       }
     }
   }

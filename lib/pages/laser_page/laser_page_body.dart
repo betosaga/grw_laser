@@ -6,7 +6,6 @@ import 'package:grw_laser/pages/laser_page/components/laser_rectangle_commands.d
 import 'package:grw_laser/pages/laser_page/components/laser_taken_points_display.dart';
 import 'package:grw_laser/pages/laser_page/components/laser_point_actions_dock.dart';
 import 'package:grw_laser/pages/laser_page/components/laser_top_actions_bar.dart';
-import 'package:grw_laser/pages/laser_page/components/laser_communication_status.dart';
 import 'package:grw_laser/pages/laser_page/components/laser_direction_selector.dart';
 import 'package:grw_laser/pages/laser_page/components/laser_viewer_webview.dart';
 import 'package:grw_laser/pages/laser_page/components/laser_joystick_dashboard.dart';
@@ -94,7 +93,6 @@ class LaserPageBody extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               LaserTopActionsBar(controller: controller),
-              LaserCommunicationStatus(controller: controller),
               Expanded(
                 child: AbsorbPointer(
                   absorbing: controller.isWaitingHomeReach,
@@ -207,29 +205,21 @@ class LaserPageBody extends StatelessWidget {
                             ],
                           ]),
                         ),
-                      if (!controller.connectionStatus ||
-                          controller.loadingDati)
+                      if (!controller.connectionStatus)
                         Center(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              if (controller.isConnectingToRobot)
-                                LoadingSpinner(
-                                  color: AppColors.sagaBlue,
-                                ),
-                              SizedBox(
-                                height: 16,
-                              ),
                               Text(
-                                  controller.isConnectingToRobot
-                                      ? "Connessione..."
-                                      : controller.connectionStatus
-                                          ? "Connesso"
-                                          : "Disconnesso",
-                                  style: TextStyle(
-                                      color: AppColors.sagaBlue,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 20))
+                                'Disconnesso',
+                                style: TextStyle(
+                                  color: AppColors.sagaBlue,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 20,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              LoadingSpinner(color: AppColors.sagaBlue),
                             ],
                           ),
                         ),

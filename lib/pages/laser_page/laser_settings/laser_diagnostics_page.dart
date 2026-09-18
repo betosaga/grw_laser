@@ -89,6 +89,7 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
   }
 
   void _appendPingLog(String line) {
+    widget.laserPageController.printLog('[PING] $line');
     if (!mounted) return;
     setState(() => _pingLogs.add('${_timestamp()}  $line'));
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -102,6 +103,7 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
   }
 
   void _appendStressLog(String line) {
+    widget.laserPageController.printLog('[STRESS] $line');
     if (!mounted) return;
     setState(() => _stressLogs.add('${_timestamp()}  $line'));
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -115,6 +117,7 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
   }
 
   void _appendTestPuntiLog(String line) {
+    widget.laserPageController.printLog('[TEST PUNTI] $line');
     if (!mounted) return;
     setState(() => _testPuntiLogs.add('${_timestamp()}  $line'));
     WidgetsBinding.instance.addPostFrameCallback((_) {

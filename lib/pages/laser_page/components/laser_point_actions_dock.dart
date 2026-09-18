@@ -150,7 +150,7 @@ class _LaserPointActionsDockState extends State<LaserPointActionsDock> {
                 backgroundColor:
                     hasSafePosition ? _safeSetColor : _safeMissingColor,
                 onPressed: () async {
-                  debugPrint(
+                  widget.controller.printLog(
                     '[SAFE_POSITION][UI] Apertura dialog opzioni safe position',
                   );
                   String? selected;
@@ -212,32 +212,32 @@ class _LaserPointActionsDockState extends State<LaserPointActionsDock> {
                       ),
                     ),
                   );
-                  debugPrint(
+                  widget.controller.printLog(
                     '[SAFE_POSITION][UI] Dialog chiuso, selezione=$selected',
                   );
                   if (selected == null) {
-                    debugPrint(
+                    widget.controller.printLog(
                       '[SAFE_POSITION][UI] Nessuna opzione selezionata, esco',
                     );
                     return;
                   }
                   switch (selected) {
                     case 'vai':
-                      debugPrint(
+                      widget.controller.printLog(
                         '[SAFE_POSITION][UI] Azione richiesta: VAI -> sendGoToSafePosition()',
                       );
                       await widget.controller.sendGoToSafePosition();
-                      debugPrint(
+                      widget.controller.printLog(
                         '[SAFE_POSITION][UI] Azione VAI completata',
                       );
                       break;
                     case 'setta':
-                      debugPrint(
+                      widget.controller.printLog(
                         '[SET_SAFE_POSITION][UI] Azione richiesta: IMPOSTA -> sendSetSafePosition(askConfirmation: false)',
                       );
                       await widget.controller
                           .sendSetSafePosition(askConfirmation: false);
-                      debugPrint(
+                      widget.controller.printLog(
                         '[SET_SAFE_POSITION][UI] Azione IMPOSTA completata',
                       );
                       break;

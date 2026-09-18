@@ -1,5 +1,10 @@
 # ChangeLog
 
+## Local changes (unreleased)
+
+- Android: migrate to built-in Kotlin with AGP 9.0.1, preserving JVM target 11.
+- Require Flutter 3.44 and Dart 3.12 or later.
+
 ## 4.2.5
 
 ### Fixes
