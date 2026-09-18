@@ -412,6 +412,21 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
                 padding: const EdgeInsets.all(32.0),
                 child: ListView(
                   children: [
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Log comandi sulle API'),
+                      subtitle: const Text(
+                        'Invia WELD e interpolazioni con tutti i parametri per il debug. '
+                        'La scelta vale per tutti i robot su questo tablet e viene salvata subito.',
+                      ),
+                      value: widget.laserPageController.commandApiLogEnabled,
+                      onChanged: (enabled) async {
+                        await widget.laserPageController
+                            .setCommandApiLogEnabled(enabled);
+                        if (mounted) setState(() {});
+                      },
+                    ),
+                    const Divider(),
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8.0),
                       child: Row(

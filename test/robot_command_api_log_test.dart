@@ -70,12 +70,72 @@ void main() {
     await Hive.close();
     await hiveDirectory.delete(recursive: true);
   });
+  setUp(() async {
+    await Hive.box(
+      Constants.HIVE_BOX_NAME,
+    ).delete(Constants.HIVE_LASER_COMMAND_API_LOG_ENABLED_KEY);
+  });
+
+  test(
+    'API logging defaults off and persists both choices across reopen',
+    () async {
+      final c = _controller(FakeRobotSocket());
+      expect(c.commandApiLogEnabled, isFalse);
+      final otherPage = _controller(FakeRobotSocket());
+      await c.setCommandApiLogEnabled(true);
+      expect(otherPage.commandApiLogEnabled, isTrue);
+      c.onDispose();
+      otherPage.onDispose();
+      await Hive.close();
+      await Hive.openBox(Constants.HIVE_BOX_NAME);
+      final reopened = _controller(FakeRobotSocket());
+      expect(reopened.commandApiLogEnabled, isTrue);
+      await reopened.setCommandApiLogEnabled(false);
+      reopened.onDispose();
+      await Hive.close();
+      await Hive.openBox(Constants.HIVE_BOX_NAME);
+      expect(_controller(FakeRobotSocket()).commandApiLogEnabled, isFalse);
+    },
+  );
+
+  testWidgets(
+    'disabled logging skips API calls while WELD still reaches socket',
+    (tester) async {
+      final socket = FakeRobotSocket();
+      final c = _controller(socket);
+      final requests = <http.Request>[];
+      await http.runWithClient(
+        () async {
+          await c.startConnection();
+          await c.sendMessageToRobot({'f': 'WELD'});
+          await tester.pump();
+          expect(requests, isEmpty);
+          expect(socket.writes, hasLength(1));
+          await tester.runAsync(() => c.setCommandApiLogEnabled(true));
+          await c.sendMessageToRobot({'f': 'WELD'});
+          await tester.pump();
+          expect(requests, hasLength(1));
+          await tester.runAsync(() => c.setCommandApiLogEnabled(false));
+          await c.sendMessageToRobot({'f': 'WELD'});
+          await tester.pump();
+          expect(requests, hasLength(1));
+          expect(socket.writes, hasLength(3));
+          c.onDispose();
+        },
+        () => MockClient((request) async {
+          requests.add(request);
+          return http.Response('{}', 200);
+        }),
+      );
+    },
+  );
 
   testWidgets(
     'WELD logs the full socket payload without awaiting API response',
     (tester) async {
       final socket = FakeRobotSocket();
       final c = _controller(socket);
+      await tester.runAsync(() => c.setCommandApiLogEnabled(true));
       final apiResponse = Completer<http.Response>();
       final requests = <http.Request>[];
       await http.runWithClient(
@@ -130,6 +190,7 @@ void main() {
     (tester) async {
       final socket = FakeRobotSocket();
       final c = _controller(socket);
+      await tester.runAsync(() => c.setCommandApiLogEnabled(true));
       final requests = <http.Request>[];
       await http.runWithClient(
         () async {
@@ -159,6 +220,7 @@ void main() {
   ) async {
     final socket = FakeRobotSocket();
     final c = _controller(socket);
+    await tester.runAsync(() => c.setCommandApiLogEnabled(true));
     final response = Completer<http.Response>();
     final client = _TrackedClient((_) => response.future);
     await http.runWithClient(() async {
@@ -179,68 +241,80 @@ void main() {
   });
 
   for (final cloud in [false, true]) {
-    testWidgets(
-      'interpola (cloud=$cloud) logs the exact HTTP body and endpoint',
-      (tester) async {
-        final c = _controller(FakeRobotSocket());
-        c.armPosition = true;
-        c.robotSafePositionFlagNotifier.value = true;
-        c.robotSafePositionCurrentRaw = {
-          'position': [1, 2, 3, 4, 5, 6],
-        };
-        c.modalitaNuvolaNotifier.value = cloud;
-        c.points.points = List.generate(
-          4,
-          (i) => Point(x: i.toDouble(), order: i)
-            ..isBase = i < 2
-            ..isLimite = i >= 2,
-        );
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Builder(
-              builder: (context) {
-                c.context = context;
-                return const SizedBox();
-              },
+    for (final loggingEnabled in [false, true]) {
+      testWidgets(
+        'interpola (cloud=$cloud, logging=$loggingEnabled) respects logging preference',
+        (tester) async {
+          final c = _controller(FakeRobotSocket());
+          if (loggingEnabled) {
+            await tester.runAsync(() => c.setCommandApiLogEnabled(true));
+          }
+          c.armPosition = true;
+          c.robotSafePositionFlagNotifier.value = true;
+          c.robotSafePositionCurrentRaw = {
+            'position': [1, 2, 3, 4, 5, 6],
+          };
+          c.modalitaNuvolaNotifier.value = cloud;
+          c.points.points = List.generate(
+            4,
+            (i) => Point(x: i.toDouble(), order: i)
+              ..isBase = i < 2
+              ..isLimite = i >= 2,
+          );
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Builder(
+                builder: (context) {
+                  c.context = context;
+                  return const SizedBox();
+                },
+              ),
             ),
-          ),
-        );
-        final requests = <http.Request>[];
-        await http.runWithClient(
-          () async {
-            await c.sendPointsToFastAPI();
-            await tester.pump();
-          },
-          () => MockClient((request) async {
-            requests.add(request);
-            // API errors must not prevent the real interpolation request.
-            if (request.url == URLs.apiurl) {
-              return http.Response(
-                '{"code":1,"message":"log unavailable"}',
-                500,
-              );
-            }
-            return http.Response('simulated interpolation error', 500);
-          }),
-        );
-        expect(requests, hasLength(2));
-        final api = requests.singleWhere((r) => r.url == URLs.apiurl);
-        final interpolation = requests.singleWhere((r) => r.url != URLs.apiurl);
-        expect(
-          interpolation.url.path,
-          cloud ? '/interpola_nuvola' : '/interpola',
-        );
-        expect(api.bodyFields['comando'], '/interpola');
-        expect(api.bodyFields['destinazione'], interpolation.url.toString());
-        expect(api.bodyFields['parametri_json'], interpolation.body);
-        final payload = jsonDecode(interpolation.body);
-        expect(payload['path.base_points'], hasLength(4));
-        expect(payload['debug.extra']['null'], isNull);
-        expect(payload['debug.extra']['label'], 'prova è & +');
-        expect(c.logString, contains('registrazione fallita'));
-        expect(c.logString, contains('log unavailable'));
-        c.onDispose();
-      },
-    );
+          );
+          final requests = <http.Request>[];
+          await http.runWithClient(
+            () async {
+              await c.sendPointsToFastAPI();
+              await tester.pump();
+            },
+            () => MockClient((request) async {
+              requests.add(request);
+              // API errors must not prevent the real interpolation request.
+              if (request.url == URLs.apiurl) {
+                return http.Response(
+                  '{"code":1,"message":"log unavailable"}',
+                  500,
+                );
+              }
+              return http.Response('simulated interpolation error', 500);
+            }),
+          );
+          expect(requests, hasLength(loggingEnabled ? 2 : 1));
+          final interpolation = requests.singleWhere(
+            (r) => r.url != URLs.apiurl,
+          );
+          expect(
+            interpolation.url.path,
+            cloud ? '/interpola_nuvola' : '/interpola',
+          );
+          if (loggingEnabled) {
+            final api = requests.singleWhere((r) => r.url == URLs.apiurl);
+            expect(api.bodyFields['comando'], '/interpola');
+            expect(
+              api.bodyFields['destinazione'],
+              interpolation.url.toString(),
+            );
+            expect(api.bodyFields['parametri_json'], interpolation.body);
+            expect(c.logString, contains('registrazione fallita'));
+            expect(c.logString, contains('log unavailable'));
+          }
+          final payload = jsonDecode(interpolation.body);
+          expect(payload['path.base_points'], hasLength(4));
+          expect(payload['debug.extra']['null'], isNull);
+          expect(payload['debug.extra']['label'], 'prova è & +');
+          c.onDispose();
+        },
+      );
+    }
   }
 }

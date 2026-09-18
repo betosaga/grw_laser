@@ -1,5 +1,12 @@
 # Log API dei comandi robot
 
+Lo switch **Log comandi sulle API** nelle impostazioni del robot abilita queste
+chiamate. Il valore predefinito è `false`. La scelta è salvata immediatamente
+su disco con Hive (chiave `laser-command-api-log-enabled`), senza premere SALVA,
+e vale per tutti i robot sul tablet, anche dopo il riavvio dell'app.
+Quando è disattivato non partono nuove chiamate di logging; eventuali richieste
+già avviate possono completarsi. I comandi e i log locali restano attivi.
+
 L'app invia una POST alle API configurate in `URLs.apiurl` con
 `f=logRobotLaserCommand` per ogni tentativo di `WELD` e per ogni richiesta di
 interpolazione, comprese `/interpola_nuvola` e le URL configurate nei parametri.

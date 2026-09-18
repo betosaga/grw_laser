@@ -860,6 +860,21 @@ class LaserPageController {
 
   final box = HiveDiskEncoder();
 
+  // Shared tablet preference, read from Hive so all robot pages use the latest
+  // value, including controllers created before the setting was changed.
+  bool get commandApiLogEnabled =>
+      box.boolFor(key: Constants.HIVE_LASER_COMMAND_API_LOG_ENABLED_KEY) ?? false;
+
+  Future<void> setCommandApiLogEnabled(bool enabled) async {
+    try {
+      await box.box.put(Constants.HIVE_LASER_COMMAND_API_LOG_ENABLED_KEY, enabled);
+      printLog(
+          '[COMMAND_API_LOG] Logging API ${enabled ? "abilitato" : "disabilitato"}');
+    } catch (e) {
+      printLog('[COMMAND_API_LOG] Salvataggio preferenza fallito: $e');
+    }
+  }
+
   // Impostazioni - END
 
   // Log Window - Start
@@ -1222,6 +1237,7 @@ class LaserPageController {
     RobotCommandReceipt? receipt,
   }) async {
     try {
+      if (!commandApiLogEnabled) return;
       final request = <String, String>{
         'f': 'logRobotLaserCommand',
         'comando': command,
