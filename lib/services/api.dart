@@ -32,7 +32,7 @@ class Api {
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   static Future<http.Response> request(Map<String, String> dict,
-      {bool verbose = false}) async {
+      {bool verbose = false, Duration? timeout}) async {
     dict["codice"] = RandomString.generate(10);
     dict["app_data"] =
         "${PackageInfoManager.appversion} - api ${URLs.apiversion}";
@@ -47,13 +47,15 @@ class Api {
     //
     //
 
+    final client = http.Client();
     try {
       //
       //
       //
 
+      final pending = client.post(URLs.apiurl, headers: headers, body: dict);
       final response =
-          await http.post(URLs.apiurl, headers: headers, body: dict);
+          timeout == null ? await pending : await pending.timeout(timeout);
       if (verbose || verboseUnlocked) {
         dev.log("headers: $headers");
         dev.log("parameters: $dict");
@@ -77,6 +79,8 @@ class Api {
       return response;
     } on SocketException catch (e) {
       return Future.error(ResponseError(code: 499, message: e.toString()));
+    } finally {
+      client.close();
     }
   }
 

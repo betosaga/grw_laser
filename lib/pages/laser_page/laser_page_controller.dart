@@ -1196,11 +1196,53 @@ class LaserPageController {
     }
     final receipt =
         _robotConnection.send(message, expectedSession: expectedSession);
+    if (message['f'] == 'WELD') {
+      unawaited(_logCommandRequestToApi(
+        command: 'WELD',
+        payload: message,
+        destination: 'tcp://${settings.ipRobot}:20002',
+        dispatchStatus: receipt.accepted ? 'socket_write_attempted' : 'not_sent',
+        receipt: receipt,
+      ));
+    }
     // Kept only for callers explicitly requesting pacing. Not an ACK timeout.
     if (receipt.accepted && postSendDelay > Duration.zero) {
       await Future.delayed(postSendDelay);
     }
     return receipt;
+  }
+
+  /// Snapshot the complete outbound payload before the first await. Logging
+  /// never waits for robot execution and never retries or reconnects the robot.
+  Future<void> _logCommandRequestToApi({
+    required String command,
+    required Object payload,
+    required String destination,
+    required String dispatchStatus,
+    RobotCommandReceipt? receipt,
+  }) async {
+    try {
+      final request = <String, String>{
+        'f': 'logRobotLaserCommand',
+        'comando': command,
+        'seriale_robot': settings.serialeRobot,
+        'ip_robot': settings.ipRobot,
+        'destinazione': destination,
+        'dataora_client': DateTime.now().toUtc().toIso8601String(),
+        'sessione_robot': '${receipt?.session ?? robotSession}',
+        'stato_invio': dispatchStatus,
+        // Keep the actual JSON body, including nested values and nulls.
+        'parametri_json': payload is String ? payload : jsonEncode(payload),
+        if (receipt != null) 'id_comando': '${receipt.id}',
+        if (receipt != null) 'esito_comando': receipt.outcome.status.name,
+        if (receipt != null) 'dettaglio_esito': receipt.outcome.reason,
+      };
+      await Api.request(request, timeout: const Duration(seconds: 10));
+      printLog('[COMMAND_API_LOG] $command: richiesta registrata');
+    } catch (e) {
+      final detail = e is ResponseError ? 'API ${e.code}: ${e.message}' : '$e';
+      printLog('[COMMAND_API_LOG] $command: registrazione fallita: $detail');
+    }
   }
 
   Map<String, dynamic> _robotParametriPayload() {
@@ -4149,6 +4191,12 @@ class LaserPageController {
         printLog(
             ">>>INTERPOLA_REQUEST<<< body[$i0-$end0] ${pointsToSend.substring(i0, end0)}");
       }
+      unawaited(_logCommandRequestToApi(
+        command: '/interpola',
+        payload: pointsToSend,
+        destination: interpolaUrl,
+        dispatchStatus: 'request_started',
+      ));
       final response = await http.post(Uri.parse(interpolaUrl),
           headers: {"Content-Type": "application/json"}, body: pointsToSend);
 

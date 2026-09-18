@@ -426,6 +426,34 @@ function getSquadre($conn, $post)
 // ROBOT LASER — LISTA E DETTAGLIO
 // ---------------------------------------------------------------
 
+// The request dispatcher above records the complete POST (including the raw
+// parametri_json body) with Logger::logAPI and in LOGS. Do not log a second copy
+// here or interpret this debug record as confirmation of robot execution.
+function logRobotLaserCommand($conn, $post, $files)
+{
+    $headers = apache_request_headers();
+    checkClient($headers);
+    checkAuthorization($conn, $headers);
+    checkParametri(["comando", "seriale_robot", "destinazione", "dataora_client", "stato_invio", "parametri_json"], $post);
+
+    if (!in_array($post["comando"], ["WELD", "/interpola"], true))
+    {
+        responseError(400, 0, "Comando di debug non valido");
+    }
+    if (!is_string($post["parametri_json"]))
+    {
+        responseError(400, 0, "Payload di debug non valido");
+    }
+    $payload = json_decode($post["parametri_json"]);
+    if (json_last_error() !== JSON_ERROR_NONE || !is_object($payload))
+    {
+        responseError(400, 0, "Il payload di debug deve essere un oggetto JSON");
+    }
+
+    http_response_code(200);
+    echo json_encode(["message" => "Richiesta comando registrata"]);
+}
+
 function getRobotLaserList($conn, $post)
 {
 	$robots = [];
