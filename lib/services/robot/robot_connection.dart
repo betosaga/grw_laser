@@ -12,6 +12,7 @@ enum RobotConnectionState { disconnected, connecting, awaitingData, online }
 
 /// One owner for the TCP connection. Writes are never replayed or queued across
 /// sessions. Protocol dispatch is synchronous and ordered; UI work runs apart.
+/// Missing or slow telemetry never closes an established socket.
 class RobotConnection {
   RobotConnection({
     required this.onMessage,
@@ -24,9 +25,6 @@ class RobotConnection {
     this.connectTimeout = const Duration(seconds: 5),
     this.reconnectInterval = const Duration(seconds: 5),
     this.commandTimeout = const Duration(seconds: 15),
-    this.silenceTimeout = const Duration(seconds: 30),
-    this.minimumStatusTimeout = const Duration(seconds: 15),
-    this.watchdogInterval = const Duration(seconds: 1),
   })  : _connector = connector ?? _connectSocket,
         _now = now ?? DateTime.now;
 
@@ -40,15 +38,11 @@ class RobotConnection {
   final Duration connectTimeout;
   final Duration reconnectInterval;
   final Duration commandTimeout;
-  final Duration silenceTimeout;
-  final Duration minimumStatusTimeout;
-  final Duration watchdogInterval;
 
   Socket? _socket;
   StreamSubscription<String>? _subscription;
   Future<void>? _connecting;
   Timer? _reconnectTimer;
-  Timer? _watchdog;
   final Set<Timer> _sessionTimers = {};
   final Map<int, RobotCommandReceipt> _pending = {};
   final Map<int, Timer> _commandTimers = {};
@@ -57,9 +51,6 @@ class RobotConnection {
   int _session = 0;
   int _nextCommand = 0;
   String _host = '';
-  DateTime? _lastMessageAt;
-  DateTime? _lastStatusAt;
-  final List<int> _statusIntervals = [];
   RobotConnectionState _state = RobotConnectionState.disconnected;
 
   Socket? get socket => _socket;
@@ -70,7 +61,10 @@ class RobotConnection {
   bool isCurrentSession(int value) => !_disposed && value == _session;
 
   static Future<Socket> _connectSocket(
-          String host, int port, Duration timeout) =>
+    String host,
+    int port,
+    Duration timeout,
+  ) =>
       Socket.connect(host, port, timeout: timeout);
 
   void startReconnecting(String host) {
@@ -113,12 +107,16 @@ class RobotConnection {
       // Install the output error handler before setup or destruction, including
       // sockets returned by an obsolete connection attempt.
       unawaited(
-          candidate.done.then<void>((_) {}, onError: (Object e, StackTrace s) {
-        onLog('[TCP OUTPUT session=$epoch] Errore gestito: $e\n$s');
-        if (isCurrentSession(epoch) && identical(_socket, candidate)) {
-          disconnect(reason: 'Errore invio TCP: $e');
-        }
-      }));
+        candidate.done.then<void>(
+          (_) {},
+          onError: (Object e, StackTrace s) {
+            onLog('[TCP OUTPUT session=$epoch] Errore gestito: $e\n$s');
+            if (isCurrentSession(epoch) && identical(_socket, candidate)) {
+              disconnect(reason: 'Errore invio TCP: $e');
+            }
+          },
+        ),
+      );
       if (!isCurrentSession(epoch)) {
         _destroySocket(candidate, epoch);
         return;
@@ -126,9 +124,6 @@ class RobotConnection {
       _socket = candidate;
       candidate.setOption(SocketOption.tcpNoDelay, true);
       final buffer = RobotJsonBuffer();
-      _lastMessageAt = _now();
-      _lastStatusAt = null;
-      _statusIntervals.clear();
       _subscription =
           candidate.cast<List<int>>().transform(utf8.decoder).listen(
         (chunk) {
@@ -154,9 +149,10 @@ class RobotConnection {
         },
         cancelOnError: true,
       );
-      _watchdog = Timer.periodic(watchdogInterval, (_) => _checkHealth(epoch));
       _setState(
-          RobotConnectionState.awaitingData, 'TCP aperto, in attesa del robot');
+        RobotConnectionState.awaitingData,
+        'TCP aperto, in attesa del robot',
+      );
     } catch (e, s) {
       if (!isCurrentSession(epoch)) return;
       onLog('[CONNECT session=$epoch] Errore gestito: $e\n$s');
@@ -175,21 +171,6 @@ class RobotConnection {
       if (function is! String || function.trim().isEmpty) {
         throw const FormatException('Funzione MSG.f mancante');
       }
-      final now = _now();
-      _lastMessageAt = now;
-      if (function.trim().toUpperCase() == 'ROBOTSTATUS' &&
-          _validVector(message['Position']) &&
-          _validVector(message['Velocity'])) {
-        if (_lastStatusAt != null) {
-          final interval = now.difference(_lastStatusAt!).inMilliseconds;
-          // Coalesced packets must not teach a zero heartbeat period.
-          if (interval > 0) {
-            _statusIntervals.add(interval);
-            if (_statusIntervals.length > 20) _statusIntervals.removeAt(0);
-          }
-        }
-        _lastStatusAt = now;
-      }
       if (_state != RobotConnectionState.online) {
         _setState(RobotConnectionState.online, 'Ricezione robot attiva');
       }
@@ -201,43 +182,10 @@ class RobotConnection {
     }
   }
 
-  Duration get statusTimeout {
-    if (_statusIntervals.length < 3) return silenceTimeout;
-    final sorted = [..._statusIntervals]..sort();
-    final measured = Duration(milliseconds: sorted[sorted.length ~/ 2] * 5);
-    return measured > minimumStatusTimeout ? measured : minimumStatusTimeout;
-  }
-
-  bool _validVector(dynamic value) {
-    try {
-      final decoded = value is String ? jsonDecode(value) : value;
-      return decoded is List &&
-          decoded.length >= 6 &&
-          decoded.every((v) => v is num && v.isFinite);
-    } catch (_) {
-      return false;
-    }
-  }
-
-  void _checkHealth(int epoch) {
-    if (!isCurrentSession(epoch) || _socket == null) return;
-    final now = _now();
-    // Allow slower measured robot telemetry rather than imposing a fixed rate.
-    final silenceLimit =
-        statusTimeout > silenceTimeout ? statusTimeout : silenceTimeout;
-    if (_lastMessageAt != null &&
-        now.difference(_lastMessageAt!) > silenceLimit) {
-      disconnect(reason: 'Robot non risponde da ${silenceLimit.inSeconds}s');
-    } else if (_statusIntervals.length >= 3 &&
-        _lastStatusAt != null &&
-        now.difference(_lastStatusAt!) > statusTimeout) {
-      disconnect(
-          reason: 'RobotStatus non aggiornato da ${statusTimeout.inSeconds}s');
-    }
-  }
-
-  RobotCommandReceipt send(Map<String, dynamic> payload,
-      {int? expectedSession}) {
+  RobotCommandReceipt send(
+    Map<String, dynamic> payload, {
+    int? expectedSession,
+  }) {
     final current = _socket;
     String encoded;
     try {
@@ -257,9 +205,12 @@ class RobotConnection {
     // There is no outbound replay queue.
     if (_pending.length >= 256) {
       _finish(
-          _pending.values.first,
-          const RobotCommandOutcome(RobotCommandStatus.unknown,
-              'Limite monitoraggio raggiunto: esecuzione sconosciuta. Comando non reinviato'));
+        _pending.values.first,
+        const RobotCommandOutcome(
+          RobotCommandStatus.unknown,
+          'Limite monitoraggio raggiunto: esecuzione sconosciuta. Comando non reinviato',
+        ),
+      );
     }
     final receipt = RobotCommandReceipt(
       id: ++_nextCommand,
@@ -267,15 +218,21 @@ class RobotConnection {
       payload: Map<String, dynamic>.unmodifiable(payload),
       createdAt: _now(),
       accepted: true,
-      outcome: const RobotCommandOutcome(RobotCommandStatus.waiting,
-          'Affidato al socket; in attesa di risposta, esecuzione non confermata'),
+      outcome: const RobotCommandOutcome(
+        RobotCommandStatus.waiting,
+        'Affidato al socket; in attesa di risposta, esecuzione non confermata',
+      ),
     );
     _pending[receipt.id] = receipt;
     _commandTimers[receipt.id] = Timer(commandTimeout, () {
+      // A missing reply changes only the command outcome, never the TCP session.
       _finish(
-          receipt,
-          const RobotCommandOutcome(RobotCommandStatus.unknown,
-              'Timeout: esecuzione sconosciuta. Comando non reinviato'));
+        receipt,
+        const RobotCommandOutcome(
+          RobotCommandStatus.unknown,
+          'Timeout: esecuzione sconosciuta. Comando non reinviato',
+        ),
+      );
     });
     try {
       current.write(encoded);
@@ -310,12 +267,14 @@ class RobotConnection {
     final receipt = matches.single;
     final status = receipt.observationFor(message)!;
     _finish(
-        receipt,
-        RobotCommandOutcome(
-            status,
-            status == RobotCommandStatus.stateObserved
-                ? 'Stato atteso osservato; non è una conferma correlata al comando'
-                : 'Risposta compatibile ricevuta; protocollo senza ID di conferma'));
+      receipt,
+      RobotCommandOutcome(
+        status,
+        status == RobotCommandStatus.stateObserved
+            ? 'Stato atteso osservato; non è una conferma correlata al comando'
+            : 'Risposta compatibile ricevuta; protocollo senza ID di conferma',
+      ),
+    );
   }
 
   void _finish(RobotCommandReceipt receipt, RobotCommandOutcome outcome) {
@@ -330,7 +289,8 @@ class RobotConnection {
       onCommandChanged(receipt);
     } catch (e, s) {
       onLog(
-          '[COMMAND CALLBACK session=${receipt.session}] Errore gestito: $e\n$s');
+        '[COMMAND CALLBACK session=${receipt.session}] Errore gestito: $e\n$s',
+      );
     }
   }
 
@@ -380,8 +340,6 @@ class RobotConnection {
   void disconnect({String reason = 'Connessione chiusa'}) {
     final epoch = _session;
     ++_session; // Invalidates connect futures, callbacks and delayed work first.
-    _watchdog?.cancel();
-    _watchdog = null;
     for (final timer in _sessionTimers) {
       timer.cancel();
     }
@@ -394,14 +352,14 @@ class RobotConnection {
     if (subscription != null)
       unawaited(_cancelSubscription(subscription, epoch));
     if (current != null) _destroySocket(current, epoch);
-    _lastMessageAt = null;
-    _lastStatusAt = null;
-    _statusIntervals.clear();
     for (final receipt in _pending.values.toList()) {
       _finish(
-          receipt,
-          RobotCommandOutcome(RobotCommandStatus.unknown,
-              '$reason: esecuzione sconosciuta. Comando non reinviato'));
+        receipt,
+        RobotCommandOutcome(
+          RobotCommandStatus.unknown,
+          '$reason: esecuzione sconosciuta. Comando non reinviato',
+        ),
+      );
     }
     _setState(RobotConnectionState.disconnected, reason);
   }
@@ -417,7 +375,9 @@ class RobotConnection {
   }
 
   Future<void> _cancelSubscription(
-      StreamSubscription<String> subscription, int epoch) async {
+    StreamSubscription<String> subscription,
+    int epoch,
+  ) async {
     try {
       await subscription.cancel();
     } catch (e, s) {

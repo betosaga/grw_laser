@@ -66,7 +66,12 @@ data, ID locale e sessione. L'ID locale non viene inviato al robot. La memoria d
 monitoraggio è limitata a 256 comandi pendenti; superato il limite, il più
 vecchio termina come sconosciuto, senza bloccare nuovi STOP/OFF.
 
-## Rilevamento della connessione non operativa
+## Silenzio del robot e riconnessione
+
+L'app non chiude una connessione TCP aperta per assenza, lentezza o interruzione
+dei `RobotStatus`, né per il timeout di un comando. Il watchdog di ricezione è
+stato rimosso: nessuna soglia di silenzio provoca una riconnessione automatica.
+Se i messaggi riprendono, vengono elaborati sulla stessa sessione.
 
 I valori sono configurabili nel costruttore `RobotConnection`:
 
@@ -75,22 +80,21 @@ I valori sono configurabili nel costruttore `RobotConnection`:
 | Timeout apertura TCP | 5 secondi |
 | Intervallo riconnessione | 5 secondi |
 | Attesa esito comando | 15 secondi |
-| Assenza completa di messaggi validi | 30 secondi |
-| Controllo watchdog | Ogni secondo |
-| Timeout minimo telemetria | 15 secondi |
 
-Dopo almeno tre intervalli misurati fra `RobotStatus` con posizione e velocità
-valide, il timeout della telemetria è il maggiore fra 15 secondi e cinque volte
-la mediana degli ultimi 20 intervalli. Pacchetti accorpati con intervallo zero
-non modificano la stima. Se la telemetria è più lenta, anche la soglia di
-silenzio generale viene allungata. Gli altri messaggi non possono mascherare
-l'interruzione di una telemetria precedentemente periodica.
+Il timeout di un comando ne registra soltanto l'esito sconosciuto tramite
+`printLog`, senza chiudere il socket né reinviare il comando. Una connessione
+silenziosa può restare aperta anche se la rete non è più operativa: il silenzio
+da solo non è usato come prova di disconnessione.
 
-Questi valori richiedono verifica sul robot durante avvio, movimento,
-saldatura e pausa. Il watchdog rileva assenza di ricezione, non dimostra
-che la direzione tablet→robot funzioni: senza ACK correlati quel caso rimane
-un timeout del comando. Dopo una perdita di connessione l'app torna ad
-attendere la sessione e `HOMEREACH`; non ripete le lavorazioni precedenti.
+Restano gestite le chiusure TCP del robot, gli errori effettivi del socket,
+gli errori di framing/decodifica del flusso e le disconnessioni richieste
+dall'utente o da un cambio di configurazione. Il timer di riconnessione
+ritenta soltanto quando non esiste più un socket e non c'è un tentativo in corso.
+Il timeout di apertura riguarda esclusivamente i nuovi tentativi TCP.
+
+Dopo una reale riconnessione il flusso `listening` → `SETMODE` descritto sopra
+resta attivo: la rimozione del watchdog non modifica l'inizializzazione della
+modalità e non garantisce l'assenza di movimenti dopo una reale perdita TCP.
 
 ## Verifica
 
@@ -103,7 +107,8 @@ flutter test --no-pub test/robot_connection_test.dart \
 
 Le prove usano un socket simulato e un server TCP su localhost. Nessuna prova
 invia comandi al robot fisico. Coprono framing, UTF-8, errori, ordine delle
-risposte, interfaccia lenta, sessioni scadute, timeout, rilevamento del silenzio,
+risposte, interfaccia lenta, sessioni scadute, timeout, mantenimento della
+connessione durante silenzio prolungato o assenza dei `RobotStatus`,
 esiti dei comandi e regressioni dei parametri esistenti.
 
 ## Eccezioni
