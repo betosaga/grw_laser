@@ -27,6 +27,8 @@ import 'package:grw_laser/pages/laser_page/laser_simulation_page.dart';
 import 'package:grw_laser/pages/laser_page/model/safe_position.dart';
 import 'package:grw_laser/pages/laser_page_hub/laser_page_hub_controller.dart';
 import 'package:grw_laser/services/api.dart';
+import 'package:grw_laser/services/robot/robot_connection.dart';
+import 'package:grw_laser/services/robot/robot_command.dart';
 import 'package:grw_laser/services/audio_service.dart';
 import 'package:grw_laser/services/hive_disk_encoder.dart';
 import 'package:grw_laser/services/messenger.dart';
@@ -37,18 +39,6 @@ import 'package:http/http.dart' as http;
 import 'package:grw_laser/model/response/response_error.dart';
 
 //
-//
-//
-class _SocketJsonExtraction {
-//
-//
-  final List<String> messages;
-  final String remainingBuffer;
-
-  _SocketJsonExtraction(
-      {required this.messages, required this.remainingBuffer});
-}
-
 //
 //
 class LaserPageController {
@@ -92,9 +82,11 @@ class LaserPageController {
   final Set<String> _dirtyRobotParameterKeys = <String>{};
   bool _syncingLegacyParameterControls = false;
   bool _legacyParameterBindingsInitialized = false;
+  final RobotSocketConnector? robotSocketConnector;
   LaserPageController(
       {required this.hubController,
       required this.settings,
+      this.robotSocketConnector,
       this.tipoControrotaia = 'controrotaiasemplice'}) {
     for (final parametro in settings.parametri) {
       if (parametro.parametro.trim() == 'job.rail_type' &&
@@ -207,7 +199,6 @@ class LaserPageController {
   };
   String status = "";
   String weldingStatus = weldingStatusInactive;
-  Timer? timerReconnection;
   Stopwatch stopwatch = Stopwatch();
   bool laserStatus = false;
   bool paused = true;
@@ -916,10 +907,73 @@ class LaserPageController {
   TextStyle h = TextStyle();
   TextStyle l = TextStyle();
   FocusNode focusNode = FocusNode();
-  Socket? socket;
-  StreamSubscription? socketSubscription;
+  Socket? get socket => _robotConnection.socket;
   bool isDisposing = false;
-  String socketReadBuffer = "";
+  final List<RobotCommandReceipt> robotCommandHistory = [];
+  String? robotCommunicationWarning;
+  String robotConnectionDescription = 'Robot disconnesso';
+  int? _pendingControlReceiptId;
+  bool _modeScheduledForSession = false;
+  late final RobotConnection _robotConnection = RobotConnection(
+    connector: robotSocketConnector,
+    onMessage: _applyRobotMessage,
+    onStateChanged: _onRobotConnectionChanged,
+    onCommandChanged: _onRobotCommandChanged,
+    onLog: printLog,
+  );
+
+  void _onRobotConnectionChanged(RobotConnectionState state, String reason) {
+    // Transport state must update even when no widget is mounted.
+    robotConnectionDescription = reason;
+    connectionStatus = state == RobotConnectionState.awaitingData ||
+        state == RobotConnectionState.online;
+    isConnectingToRobot = state == RobotConnectionState.connecting;
+    if (state != RobotConnectionState.online) {
+      homeReachReceived = false;
+      homeReferencePosition = null;
+      canMoveRobot = false;
+      dashboardSetCanMoveRobot?.call(false);
+      _setCanTakePoint(false);
+    }
+    if (state == RobotConnectionState.awaitingData) {
+      _modeScheduledForSession = false;
+      isGasActive = false;
+      isWireActive = false;
+    }
+    mySetState?.call(() {});
+  }
+
+  void _onRobotCommandChanged(RobotCommandReceipt receipt) {
+    if (!robotCommandHistory.contains(receipt)) {
+      robotCommandHistory.add(receipt);
+      if (robotCommandHistory.length > 100) robotCommandHistory.removeAt(0);
+    }
+    final status = receipt.outcome.status;
+    final isControl =
+        const {'PAUSE', 'RESUME', 'STOPCORDONE'}.contains(receipt.command);
+    if (isControl && status == RobotCommandStatus.waiting) {
+      _pendingControlReceiptId = receipt.id;
+    }
+    if (status == RobotCommandStatus.notSent ||
+        status == RobotCommandStatus.unknown) {
+      robotCommunicationWarning =
+          '${receipt.command}: ${receipt.outcome.reason}';
+      if (isControl &&
+          (status == RobotCommandStatus.notSent ||
+              _pendingControlReceiptId == receipt.id)) {
+        _setPendingRobotTargetStatus(null);
+      }
+    }
+    printLog('[COMANDO #${receipt.id} sessione=${receipt.session}] '
+        '${receipt.command}: ${receipt.outcome.reason}');
+    mySetState?.call(() {});
+  }
+
+  void dismissRobotCommunicationWarning() {
+    robotCommunicationWarning = null;
+    mySetState?.call(() {});
+  }
+
   double step = 10;
   double stepx = 1;
   double deltax = 0, deltay = 0, deltaz = 0;
@@ -1057,6 +1111,7 @@ class LaserPageController {
     //
     //
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (isDisposing) return;
       //
       //
       //
@@ -1067,7 +1122,8 @@ class LaserPageController {
       }
 
       restoreStratiEseguiti();
-      await deleteSafePosition();
+      await deleteSafePosition(notifyRobot: false);
+      if (isDisposing) return;
       loadPanelConfig();
 
       _syncOffsetInizioDefaultsForCurrentMode(force: true);
@@ -1110,8 +1166,7 @@ class LaserPageController {
     context = null;
     mySetState = null;
     webviewDispatchFlutterMessage = null;
-    closeSocket();
-    destroyReconnectionTimer();
+    _robotConnection.dispose();
   }
 
   void setScrollViewEnabledScrolling({required newValue}) {
@@ -1127,55 +1182,30 @@ class LaserPageController {
     return "${twoDigits(duration.inHours)}:$twoDigitMinutes:$twoDigitSeconds";
   }
 
-  Future<void> sendMessageToRobot(
+  int get robotSession => _robotConnection.session;
+
+  Future<RobotCommandReceipt> Function(Map<String, dynamic>) _sessionSender() {
+    final epoch = _robotConnection.session;
+    return (message) => sendMessageToRobot(message, expectedSession: epoch);
+  }
+
+  /// Returns local acceptance immediately. Await receipt.completed for the
+  /// observed outcome; TCP acceptance is never reported as robot execution.
+  Future<RobotCommandReceipt> sendMessageToRobot(
     Map<String, dynamic> message, {
-    Duration postSendDelay = const Duration(seconds: 2),
+    Duration postSendDelay = Duration.zero,
+    int? expectedSession,
   }) async {
-    print("[SENTMESSAGE] : $message");
-    if (socket == null) {
-      return;
+    if (disableMoveToRobotSend && message['f'] == 'MOVETO') {
+      return _robotConnection.reject(message, 'MOVETO disabilitato per debug');
     }
-
-    final command = message['f']?.toString().trim().toUpperCase();
-
-    if (command == 'GOTOSAFEPOSITION') {
-      debugPrint(
-        '[SAFE_POSITION][TX] Command=GOTOSAFEPOSITION payload=${jsonEncode(message)}',
-      );
-    }
-
-    if (command == 'SETSAFEPOSITION') {
-      debugPrint(
-        '[SET_SAFE_POSITION][TX] Command=SETSAFEPOSITION payload=${jsonEncode(message)}',
-      );
-    }
-
-    if (command == 'MOVETO') {
-      debugPrint('$moveToDebugLogPrefix payload=${jsonEncode(message)}');
-
-      final point = message['point'];
-      if (point is Point) {
-        debugPrint(
-          '$moveToDebugLogPrefix point '
-          'x=${point.x} y=${point.y} z=${point.z} '
-          'j1=${point.j1} j2=${point.j2} j3=${point.j3} '
-          'order=${point.order} dashboard=${point.dashboardPosition}',
-        );
-      } else {
-        debugPrint('$moveToDebugLogPrefix pointRaw=$point');
-      }
-
-      if (disableMoveToRobotSend) {
-        debugPrint('$moveToDebugLogPrefix DRY_RUN ENABLED: MOVETO non inviato');
-        return;
-      }
-    }
-
-    final encodedMessage = jsonEncode(message);
-    socket?.write(encodedMessage);
-    if (postSendDelay > Duration.zero) {
+    final receipt =
+        _robotConnection.send(message, expectedSession: expectedSession);
+    // Kept only for callers explicitly requesting pacing. Not an ACK timeout.
+    if (receipt.accepted && postSendDelay > Duration.zero) {
       await Future.delayed(postSendDelay);
     }
+    return receipt;
   }
 
   Map<String, dynamic> _robotParametriPayload() {
@@ -1590,33 +1620,24 @@ class LaserPageController {
 
   void setRobotCanMove(bool value) {
     if (canMoveRobot == value) return;
-
-    mySetState?.call(() {
-      canMoveRobot = value;
-    });
+    canMoveRobot = value;
+    mySetState?.call(() {});
     dashboardSetCanMoveRobot?.call(value);
   }
 
   Future<void> sendJoystickMoveCommand(
     Map<String, dynamic> message, {
     String ignoredLog = 'Ignoro Joystick',
-    Duration fallbackUnlockDelay = const Duration(milliseconds: 1200),
   }) async {
+    final send = _sessionSender();
     if (!canMoveRobot) {
       printLog(ignoredLog);
       return;
     }
-
     setRobotCanMove(false);
-    try {
-      await sendMessageToRobot(message);
-    } finally {
-      Future.delayed(fallbackUnlockDelay, () {
-        if (!canMoveRobot) {
-          setRobotCanMove(true);
-        }
-      });
-    }
+    await send(message);
+    // Only a robot response/status may unlock movement; elapsed time is not
+    // evidence that a movement completed.
   }
 
   Point _copyRobotPosition(Point point) {
@@ -1720,6 +1741,7 @@ class LaserPageController {
   }
 
   Future<void> resetPunti() async {
+    final send = _sessionSender();
     points.deleteAllPoints();
     freezeCursorUntil = null;
     pointsFrameEpoch = null;
@@ -1732,7 +1754,7 @@ class LaserPageController {
     });
 
     resetStratiEseguiti();
-    await sendMessageToRobot({"f": "RESETSAFEPOSITION"});
+    await send({"f": "RESETSAFEPOSITION"});
   }
 
   void replacePunti({required PointsFree newPoints}) {
@@ -1746,6 +1768,7 @@ class LaserPageController {
   }
 
   Future<void> resetPoints() async {
+    final send = _sessionSender();
     mySetState?.call(() {
       points.deleteAllPoints();
     });
@@ -1753,7 +1776,7 @@ class LaserPageController {
     hasFrameMismatch = false;
     lastFrameReason = null;
     notifyPointsOrderChanged();
-    await sendMessageToRobot({"f": "RESETSAFEPOSITION"});
+    await send({"f": "RESETSAFEPOSITION"});
   }
 
   void resetFrame() {
@@ -1907,6 +1930,7 @@ class LaserPageController {
   }
 
   Future<void> _restoreSafePositionOnHomeReachIfAvailable() async {
+    final send = _sessionSender();
     debugPrint('[SAFE_TRACE][RESTORE][HOME] trigger=HOMEREACH');
     final currentValue = _safePositionPayloadForRobotCommands();
     if (currentValue == null) {
@@ -1919,7 +1943,7 @@ class LaserPageController {
       '[SAFE_TRACE][RESTORE][TX] sending RESTORESAFEPOSITION with current=$currentValue',
     );
 
-    await sendMessageToRobot({
+    await send({
       "f": "RESTORESAFEPOSITION",
       "current": currentValue,
     });
@@ -2017,92 +2041,7 @@ class LaserPageController {
         (a.z - b.z).abs() <= tolerance;
   }
 
-  Future<void> processSocketChunk(String chunk) async {
-    final sanitizedChunk = chunk.replaceAll("\r", "");
-    if (sanitizedChunk.trim().isEmpty) return;
-
-    socketReadBuffer += sanitizedChunk;
-
-    final extraction = _extractCompleteJsonMessages(socketReadBuffer);
-    socketReadBuffer = extraction.remainingBuffer;
-
-    for (final message in extraction.messages) {
-      await elaboraMessaggi(message);
-    }
-  }
-
-  _SocketJsonExtraction _extractCompleteJsonMessages(String buffer) {
-    final messages = <String>[];
-    final workingBuffer = StringBuffer();
-    var depth = 0;
-    var startIndex = -1;
-    var inString = false;
-    var isEscaping = false;
-
-    for (int index = 0; index < buffer.length; index++) {
-      final char = buffer[index];
-
-      if (startIndex == -1) {
-        if (char.trim().isEmpty) {
-          continue;
-        }
-
-        if (char == '{') {
-          startIndex = index;
-          depth = 1;
-          inString = false;
-          isEscaping = false;
-        }
-        continue;
-      }
-
-      if (isEscaping) {
-        isEscaping = false;
-        continue;
-      }
-
-      if (char == '\\') {
-        if (inString) {
-          isEscaping = true;
-        }
-        continue;
-      }
-
-      if (char == '"') {
-        inString = !inString;
-        continue;
-      }
-
-      if (inString) {
-        continue;
-      }
-
-      if (char == '{') {
-        depth++;
-      } else if (char == '}') {
-        depth--;
-        if (depth == 0) {
-          messages.add(buffer.substring(startIndex, index + 1));
-          startIndex = -1;
-        }
-      }
-    }
-
-    if (startIndex != -1) {
-      workingBuffer.write(buffer.substring(startIndex));
-    }
-
-    return _SocketJsonExtraction(
-      messages: messages,
-      remainingBuffer: workingBuffer.toString(),
-    );
-  }
-
-  Future<void> elaboraMessaggi(String m) async {
-    m = m.trim();
-    if (m.isEmpty) return;
-    m = m.replaceAll("\n", "");
-
+  void _applyRobotMessage(Map<String, dynamic> j) {
     // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
     // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
     // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
@@ -2110,7 +2049,6 @@ class LaserPageController {
       // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
       // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
       // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
-      Map<String, dynamic> j = jsonDecode(m);
       // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
       // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
       // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
@@ -2146,24 +2084,17 @@ class LaserPageController {
             // - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
 
             case 'listening':
-              print("PASSO DI QUI 789236478932478932");
-              //
-              //
-              final modalita = direzioneCordoniNotifier.value == 'h'
-                  ? 'orizzontale'
-                  : 'verticale';
-              //
-              //
-              printLog("INVIO SET MODE...");
-              //
-              //
-              await Future.delayed(Duration(milliseconds: 1500));
-              //
-              //
-              await sendMessageToRobot(
-                  {"f": "SETMODE", "tipo_controrotaia": controrotaiaModeValue});
-              //
-              //
+              if (!_modeScheduledForSession) {
+                _modeScheduledForSession = true;
+                // Preserve the robot startup grace period without blocking RX.
+                _robotConnection.schedule(const Duration(milliseconds: 1500),
+                    () {
+                  unawaited(sendMessageToRobot({
+                    "f": "SETMODE",
+                    "tipo_controrotaia": controrotaiaModeValue,
+                  }));
+                });
+              }
               break;
 
             case 'getPoint':
@@ -2316,7 +2247,8 @@ class LaserPageController {
                 }
               });
 
-              await _forwardExecutedCordoniToWebview(executedCordoni);
+              _robotConnection.enqueueUiWork(
+                  () => _forwardExecutedCordoniToWebview(executedCordoni));
               break;
             case 'SafePosition':
               try {
@@ -2353,7 +2285,7 @@ class LaserPageController {
               debugPrint(
                 '[SAFE_POSITION][RX] Comando resetSafePosition ricevuto, elimino safe position locale',
               );
-              await deleteSafePosition();
+              unawaited(deleteSafePosition());
               break;
             case 'FrameState':
               try {
@@ -2403,6 +2335,23 @@ class LaserPageController {
                   debugPrint(
                     '[SAFE_TRACE][ROBOT_STATUS] SafePosition field missing, keep previous map=$robotSafePositionCurrentRaw flag=${robotSafePositionFlagNotifier.value}',
                   );
+                }
+
+                if (j['MSG']['Paused'] != null) {
+                  //
+                  if (j['MSG']['Paused'] != paused) {
+                    // printLog("RICEVUTO PAUSED: ${j['MSG']['Paused']}");
+                    paused = j['MSG']['Paused'];
+                  }
+                  dashboardSetPaused?.call(paused);
+                }
+
+                if (j['MSG']['status'] != null) {
+                  final currentStatus =
+                      _normalizeWeldingStatus(j['MSG']['status']);
+                  _resolvePendingRobotTargetStatus(currentStatus);
+                  _applyWeldingStatus(currentStatus);
+                  _logWeldUiState(sourceStatus: currentStatus);
                 }
 
                 final robotStatus =
@@ -2467,13 +2416,17 @@ class LaserPageController {
                   lastFrameReason = 'HOMEREACH';
                   _updateFrameValidationFromCurrentState(reason: 'HOMEREACH');
 
-                  await _restoreSafePositionOnHomeReachIfAvailable();
+                  unawaited(_restoreSafePositionOnHomeReachIfAvailable());
 
                   break;
                 }
 
-                final p = jsonDecode(j['MSG']['Position']);
-                final v = jsonDecode(j['MSG']['Velocity']);
+                final p = _parseRobotPositionList(j['MSG']['Position']);
+                final v = _parseRobotPositionList(j['MSG']['Velocity']);
+                if (p == null || p.length < 6 || v == null || v.length < 6) {
+                  // Status-only responses are valid; they must not unlock motion.
+                  break;
+                }
 
                 posizioneRobot.x = p[0];
                 posizioneRobot.y = p[1];
@@ -2511,10 +2464,11 @@ class LaserPageController {
                 }
                 _syncRobotMoveAvailabilityFromStatus();
 
-                final positionj = jsonDecode(j['MSG']['PositionJ']);
+                final positionj =
+                    _parseRobotPositionList(j['MSG']['PositionJ']);
                 //
                 //
-                if (positionj is List) {
+                if (positionj != null) {
                   //
                   //
                   if (positionj.length == 6) {
@@ -2541,11 +2495,16 @@ class LaserPageController {
                   posizioneRobot.jt6 = 0;
                 }
 
-                final lastStrato = int.parse(j['MSG']['lastStrato']);
-                final lastCordone = int.parse(j['MSG']['lastCordone']);
+                final lastStrato =
+                    int.tryParse('${j['MSG']['lastStrato']}') ?? -1;
+                final lastCordone =
+                    int.tryParse('${j['MSG']['lastCordone']}') ?? -1;
 
                 mySetState?.call(() {
-                  if (lastStrato >= 0) {
+                  if (lastStrato >= 0 &&
+                      lastStrato <
+                          (stratiEseguiti[settings.serialeRobot]?.length ??
+                              0)) {
                     stratiEseguiti[settings.serialeRobot]![lastStrato]
                         .eseguito = true;
                     if (lastCordone >= 0) {
@@ -2554,23 +2513,6 @@ class LaserPageController {
                     }
                   }
                 });
-                if (j['MSG']['Paused'] != null) {
-                  //
-                  if (j['MSG']['Paused'] != paused) {
-                    // printLog("RICEVUTO PAUSED: ${j['MSG']['Paused']}");
-                    paused = j['MSG']['Paused'];
-                  }
-                  dashboardSetPaused?.call(paused);
-                }
-
-                if (j['MSG']['status'] != null) {
-                  final currentStatus =
-                      _normalizeWeldingStatus(j['MSG']['status']);
-                  _resolvePendingRobotTargetStatus(currentStatus);
-                  _applyWeldingStatus(currentStatus);
-                  _logWeldUiState(sourceStatus: currentStatus);
-                }
-
                 if (j['MSG']['weldedLength'] != null &&
                     j['MSG']['weldTotalLength'] != null) {
                   mySetState?.call(() {
@@ -2582,8 +2524,8 @@ class LaserPageController {
                     } catch (e) {}
                   });
                 }
-              } catch (e) {
-                print("ROBOT STATUS ERROR: $e");
+              } catch (e, stack) {
+                printLog("ROBOT STATUS ERROR: $e; payload=${j['MSG']}\n$stack");
               }
               break;
             case "ArmPositionStatus":
@@ -2697,7 +2639,9 @@ class LaserPageController {
               break;
 
             case 'WEBVIEW_MESSAGE':
-              await webviewDispatchFlutterMessage?.call(j['MSG']['data']);
+              _robotConnection.enqueueUiWork(() async {
+                await webviewDispatchFlutterMessage?.call(j['MSG']['data']);
+              });
               break;
 
             default:
@@ -2705,116 +2649,22 @@ class LaserPageController {
           }
         }
       }
-    } catch (e) {
-      //
-      mySetState?.call(() {
-        canMoveRobot = true;
-      });
-      dashboardSetCanMoveRobot?.call(true);
-      _setCanTakePoint(true);
+    } catch (e, stack) {
+      printLog('[ROBOT RX] Errore elaborazione: $e; payload=$j\n$stack');
     }
   }
 
   Future<void> startConnection() async {
-    //
-    //
-    print("[ Connecting ]");
-    isDisposing = false;
-    //
-    //
-    if (!UNLOCK_PAGE_FOR_TEST) {
-      //
-      //
-      print("connected");
-      //
-      //
-      try {
-        //
-        //
-        socket = null;
-        mySetState?.call(() {
-          isConnectingToRobot = true;
-        });
-        //
-        //
-        socket = await Socket.connect(settings.ipRobot, 20002,
-            timeout: Duration(seconds: 5));
-        //
-        //
-        mySetState?.call(() {
-          connectionStatus = true;
-          isConnectingToRobot = false;
-          homeReachReceived = false;
-        });
-        //
-        //
-        //
-        printLog("SET MODE INVIATA");
-        //
-        //
-        homeReferencePosition = null;
-        setRobotCanMove(false);
-        _setCanTakePoint(false);
-        //
-        //
-        printLog("[ Connected ]");
-
-        isGasActive = false;
-        isWireActive = false;
-
-        socketSubscription?.cancel();
-        socketSubscription = socket?.listen(
-          (data) {
-            if (isDisposing) return;
-            final chunk = String.fromCharCodes(data);
-            mySetState?.call(() {
-              message = chunk;
-            });
-            processSocketChunk(chunk);
-          },
-          onDone: () {
-            if (isDisposing) return;
-            printLog('[ Disconnected ]');
-            socketReadBuffer = "";
-
-            mySetState?.call(() {
-              connectionStatus = false;
-              isConnectingToRobot = false;
-              homeReachReceived = false;
-            });
-            _setCanTakePoint(true);
-            closeSocket();
-          },
-          onError: (e) {
-            if (isDisposing) return;
-            printLog('[ CONNECTION ERROR 1 ]');
-            socketReadBuffer = "";
-            closeSocket();
-
-            mySetState?.call(() {
-              connectionStatus = false;
-              isConnectingToRobot = false;
-              homeReachReceived = false;
-            });
-            _setCanTakePoint(true);
-          },
-        );
-      } catch (e) {
-        print(e);
-        print("[ CONNECTION ERROR 2 ]");
-        mySetState?.call(() {
-          connectionStatus = false;
-          isConnectingToRobot = false;
-          homeReachReceived = false;
-        });
-      }
-    }
+    if (isDisposing || UNLOCK_PAGE_FOR_TEST) return;
+    buildReconnectionTimer();
+    await _robotConnection.connect(settings.ipRobot);
   }
 
   void gasTouchedDown() async {
+    final send = _sessionSender();
     if (!isGasActive) {
       isGasActive = true;
-      await sendMessageToRobot({
+      await send({
         "f": "GAS-ON",
         "pin_laser": effectivePinLaser,
         "pin_gas": effectivePinGas,
@@ -2824,16 +2674,17 @@ class LaserPageController {
   }
 
   void gasTouchedUp() {
-    Timer(Duration(seconds: GAS_WIRE_TIMEOUT_SECONDS), () async {
+    _robotConnection.schedule(Duration(seconds: GAS_WIRE_TIMEOUT_SECONDS), () {
       isGasActive = false;
-      await sendMessageToRobot({"f": "GAS-OFF"});
+      unawaited(sendMessageToRobot({"f": "GAS-OFF"}));
     });
   }
 
   void filoTouchedDown() async {
+    final send = _sessionSender();
     if (!isWireActive) {
       isWireActive = true;
-      await sendMessageToRobot({
+      await send({
         "f": "WIRE-ON",
         "pin_laser": effectivePinLaser,
         "pin_gas": effectivePinGas,
@@ -2843,9 +2694,9 @@ class LaserPageController {
   }
 
   void filoTouchedUp() {
-    Timer(Duration(seconds: GAS_WIRE_TIMEOUT_SECONDS), () async {
+    _robotConnection.schedule(Duration(seconds: GAS_WIRE_TIMEOUT_SECONDS), () {
       isWireActive = false;
-      await sendMessageToRobot({"f": "WIRE-OFF"});
+      unawaited(sendMessageToRobot({"f": "WIRE-OFF"}));
     });
   }
 
@@ -2944,6 +2795,7 @@ class LaserPageController {
   }
 
   Future<void> moveToPoint(Point point) async {
+    final send = _sessionSender();
     if (!_ensurePointsFrameIsValidForAction(context, actionLabel: "MOVETO")) {
       return;
     }
@@ -2951,11 +2803,12 @@ class LaserPageController {
     if (point.positionJ != null) {
       final messageMoveTo = {"f": "MOVETO", "point": point.positionJ!.toJson()};
       print("[MOVETO] : $messageMoveTo");
-      await sendMessageToRobot(messageMoveTo);
+      await send(messageMoveTo);
     }
   }
 
   void onPointSelected(String e, BuildContext context) async {
+    final send = _sessionSender();
     // se è il d_start e il movimento è assistito devo chiedere le dimensioni del frame
     if (e == "d_start" &&
         controllerMode == LaserControllerMode.movimentoAssistito) {
@@ -2969,7 +2822,7 @@ class LaserPageController {
 
       if (framesetResult == 'confirm') {
         print("[getPoint] SETPOINT $e");
-        await sendMessageToRobot({
+        await send({
           "f": "SETPOINT",
           "point": e,
           "allontanamento_x": settings.scostamentoX,
@@ -2982,7 +2835,7 @@ class LaserPageController {
     } else {
       print("[getPoint] PASSO QUI 2");
       print("[getPoint] $e");
-      await sendMessageToRobot({
+      await send({
         "f": "SETPOINT",
         "point": e,
         "allontanamento_x": settings.scostamentoX,
@@ -2995,6 +2848,7 @@ class LaserPageController {
   }
 
   void onSaldaStratoPressed(int p, BuildContext context) async {
+    final send = _sessionSender();
     unfocusScreen();
 
     if (!_ensureRobotReadyForAction(context, actionLabel: "WELD")) {
@@ -3254,7 +3108,7 @@ class LaserPageController {
             int.tryParse(nuvolaInterpKController.text) ?? 8,
       });
 
-      await sendMessageToRobot({
+      await send({
         "f": "WELD",
         "safeposition": safePositionDecoded,
         ..._robotParametriPayload(),
@@ -3284,6 +3138,7 @@ class LaserPageController {
   }
 
   Future<void> resumePressed({required BuildContext context}) async {
+    final send = _sessionSender();
     unfocusScreen();
     //
     // - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -3329,8 +3184,7 @@ class LaserPageController {
 
     await playActivationSound();
     final backCordoneValue = result.isPrima ? result.count : -result.count;
-    await sendMessageToRobot(
-        {"f": "RESUME", "BackCordone": "$backCordoneValue"});
+    await send({"f": "RESUME", "BackCordone": "$backCordoneValue"});
   }
 
   Future<_ResumeResult?> _showResumeCordoniDialog({
@@ -3349,6 +3203,7 @@ class LaserPageController {
   }
 
   Future<void> pausePressed({required BuildContext context}) async {
+    final send = _sessionSender();
     unfocusScreen();
 
     if (!canPauseWelding) {
@@ -3358,7 +3213,7 @@ class LaserPageController {
       _setPendingRobotTargetStatus('PAUSED');
     });
     await playDeactivationSound();
-    await sendMessageToRobot({"f": "PAUSE"});
+    await send({"f": "PAUSE"});
   }
 
   Future<void> connectRobot() async {
@@ -3395,23 +3250,19 @@ class LaserPageController {
     mySetState?.call(() {
       connectionStatus = false;
       homeReachReceived = false;
-      canMoveRobot = true;
+      canMoveRobot = false;
     });
-    dashboardSetCanMoveRobot?.call(true);
+    dashboardSetCanMoveRobot?.call(false);
   }
 
   void buildReconnectionTimer() {
-    print("[ buildReconnectionTimer ] : $UNLOCK_PAGE_FOR_TEST");
-    timerReconnection =
-        Timer.periodic(Duration(seconds: 5), (Timer timer) async {
-      if (!connectionStatus && !UNLOCK_PAGE_FOR_TEST) {
-        await connettiRobot();
-      }
-    });
+    if (!isDisposing && !UNLOCK_PAGE_FOR_TEST) {
+      _robotConnection.startReconnecting(settings.ipRobot);
+    }
   }
 
   void destroyReconnectionTimer() {
-    timerReconnection?.cancel();
+    _robotConnection.stopReconnecting();
   }
 
   Future<void> closePage({required BuildContext context}) async {
@@ -3429,6 +3280,7 @@ class LaserPageController {
         loadingDati = true;
       });
 
+      destroyReconnectionTimer();
       closeSocket();
 
       totalReset();
@@ -3567,6 +3419,7 @@ class LaserPageController {
   //
   //
   Future<void> laserDirectionSelected({required bool selection}) async {
+    final send = _sessionSender();
     if (selection == armPosition) return;
 
     Vibrator.mediumVibration();
@@ -3588,7 +3441,7 @@ class LaserPageController {
         mySetState?.call(() {
           armPosition = selection;
         });
-        sendArmPosition();
+        await send({"f": "ARMPOSITION", "p": selection ? "DX" : "SX"});
       }
     }
   }
@@ -3604,6 +3457,7 @@ class LaserPageController {
   //
   //
   Future<void> destraSinistraChanged(bool? value) async {
+    final send = _sessionSender();
     if (value != null) {
       if (value == armPosition) return;
       final confirmed = await Messenger.askMessageAlert(context, "CONFERMA",
@@ -3614,7 +3468,7 @@ class LaserPageController {
         mySetState?.call(() {
           armPosition = value;
         });
-        sendArmPosition();
+        await send({"f": "ARMPOSITION", "p": value ? "DX" : "SX"});
       }
     }
   }
@@ -3637,6 +3491,7 @@ class LaserPageController {
 
   Future<void> setRobotSettings(
       {required LaserRobotSettings newSettings}) async {
+    final send = _sessionSender();
     final oldMode = controrotaiaModeValue;
     // job.rail_type è la fonte canonica quando è presente; il campo legacy
     // resta il fallback per risposte di server meno recenti.
@@ -3739,7 +3594,10 @@ class LaserPageController {
       _applyFixedDirezioneSaldaturaForTipo();
     }
 
-    if (connectionParamsChanged && socket != null) {
+    if (connectionParamsChanged &&
+        (socket != null ||
+            _robotConnection.isConnecting ||
+            _robotConnection.isReconnecting)) {
       totalReset();
       closeSocket();
       await startConnection();
@@ -3747,8 +3605,7 @@ class LaserPageController {
     }
 
     if (modeChanged && socket != null) {
-      await sendMessageToRobot(
-          {"f": "SETMODE", "tipo_controrotaia": controrotaiaModeValue});
+      await send({"f": "SETMODE", "tipo_controrotaia": controrotaiaModeValue});
     }
 
     hubController.storeSettingsListToDisk();
@@ -3756,6 +3613,7 @@ class LaserPageController {
 
   /// Cambia il tipo controrotaia a runtime e invia SETMODE al robot.
   Future<bool> sendSetModeControrotaia(String newTipo) async {
+    final send = _sessionSender();
     // Consentito solo in modalità prendi punti (joystick).
     if (pageState != LaserPanelState.joystick) return false;
     final normalized = _normalizeControrotaiaValue(newTipo);
@@ -3773,9 +3631,9 @@ class LaserPageController {
     dashboardClear?.call();
     notifyPointsOrderChanged();
     _applyDirectionDefaultsForTipo();
-    await sendMessageToRobot(
+    final receipt = await send(
         {"f": "SETMODE", "tipo_controrotaia": controrotaiaModeValue});
-    return true;
+    return receipt.accepted;
   }
 
   String _normalizeControrotaiaValue(String tipo) {
@@ -3991,12 +3849,13 @@ class LaserPageController {
   }
 
   void printLog(String log) {
-    if (log.trim() != lastLogMessage.trim()) {
-      lastLogMessage = log;
-      mySetState?.call(() {
-        logString = "$log\n$logString";
-      });
-    }
+    if (log.trim() == lastLogMessage.trim()) return;
+    lastLogMessage = log;
+    final entry = '${DateTime.now().toIso8601String()} $log';
+    debugPrint(entry);
+    logString = '$entry\n$logString';
+    if (logString.length > 32000) logString = logString.substring(0, 32000);
+    mySetState?.call(() {});
   }
 
   void setMoveToTrue() {
@@ -4230,7 +4089,7 @@ class LaserPageController {
       final elencoStepLayer = _buildElencoStepLayerPayload();
 
       final safePositionDecoded = _safePositionPayloadForRobotCommands();
-      
+
       _applyExecutionRobotParameters({
         'path.base_points': puntiBase,
         'path.point_order': ordine,
@@ -4456,14 +4315,11 @@ class LaserPageController {
   }
 
   void closeSocket() {
-    final currentSubscription = socketSubscription;
-    socketSubscription = null;
-    currentSubscription?.cancel();
-    socket?.destroy();
-    socket = null;
+    _robotConnection.disconnect();
   }
 
   Future<void> stopCurrentCordone({required BuildContext context}) async {
+    final send = _sessionSender();
     unfocusScreen();
     if (isStopping || !canStopWelding) return;
     final confirmed = await Messenger.askMessageAlert(
@@ -4473,43 +4329,46 @@ class LaserPageController {
       mySetState?.call(() {
         _setPendingRobotTargetStatus('END');
       });
-      await sendMessageToRobot({"f": "STOPCORDONE"});
+      await send({"f": "STOPCORDONE"});
     }
   }
 
   Future<void> enterPuliziaMode() async {
+    final send = _sessionSender();
     final confirmed = await Messenger.askMessageAlert(context, "CONFERMA",
             "ENTRARE IN MODALITA' PULIZIA?", "CONFERMA", "ANNULLA") ??
         false;
     if (confirmed) {
-      await sendMessageToRobot({"f": "PULIZIAMODE"});
+      await send({"f": "PULIZIAMODE"});
     }
   }
 
   Future<void> sendArmPosition() async {
+    final send = _sessionSender();
     if (armPosition == null) {
       return;
     }
-    await sendMessageToRobot(
-        {"f": "ARMPOSITION", "p": armPosition! ? "DX" : "SX"});
+    await send({"f": "ARMPOSITION", "p": armPosition! ? "DX" : "SX"});
   }
 
   Future<void> enterMaintenanceMode() async {
+    final send = _sessionSender();
     final confirmed = await Messenger.askMessageAlert(context, "CONFERMA",
             "ENTRARE IN MODALITA' MANUTENZIONE?", "CONFERMA", "ANNULLA") ??
         false;
     if (confirmed) {
       if (armPosition != null) {
         if (armPosition!) {
-          await sendMessageToRobot({"f": "MAINTENANCEMODEDX"});
+          await send({"f": "MAINTENANCEMODEDX"});
         } else {
-          await sendMessageToRobot({"f": "MAINTENANCEMODESX"});
+          await send({"f": "MAINTENANCEMODESX"});
         }
       }
     }
   }
 
   Future<void> enterTransportMode() async {
+    final send = _sessionSender();
     final confirmed = await Messenger.askMessageAlert(
             context,
             "ATTENZIONE",
@@ -4520,9 +4379,9 @@ class LaserPageController {
     if (confirmed) {
       if (armPosition != null) {
         if (armPosition!) {
-          await sendMessageToRobot({"f": "TRANSPORTMODEDX"});
+          await send({"f": "TRANSPORTMODEDX"});
         } else {
-          await sendMessageToRobot({"f": "TRANSPORTMODESX"});
+          await send({"f": "TRANSPORTMODESX"});
         }
       }
     }
@@ -4634,6 +4493,7 @@ class LaserPageController {
   }
 
   Future<void> sendSetSafePosition({bool askConfirmation = true}) async {
+    final send = _sessionSender();
     debugPrint(
       '[SET_SAFE_POSITION] Richiesta impostazione safe position ricevuta '
       'askConfirmation=$askConfirmation armPosition=$armPosition '
@@ -4683,15 +4543,16 @@ class LaserPageController {
       const payload = {"f": "SETSAFEPOSITION"};
       debugPrint('[SET_SAFE_POSITION] Payload comando robot: $payload');
 
-      await sendMessageToRobot(payload);
+      await send(payload);
       debugPrint(
-        '[SET_SAFE_POSITION] Invio completato, attendo ack robot SafePosition/RobotStatus',
+        '[SET_SAFE_POSITION] Richiesta terminata; esito nel registro comandi',
       );
       // Snackbar rimosso
     }
   }
 
   Future<void> sendGoToSafePosition() async {
+    final send = _sessionSender();
     final payload = {"f": "GOTOSAFEPOSITION"};
     final safePosition = currentSafePosition;
     debugPrint(
@@ -4701,8 +4562,8 @@ class LaserPageController {
       'safePosition=${safePosition?.position}',
     );
     debugPrint('[SAFE_POSITION][GO] Payload comando robot: $payload');
-    await sendMessageToRobot(payload);
-    debugPrint('[SAFE_POSITION][GO] Invio comando completato');
+    await send(payload);
+    debugPrint('[SAFE_POSITION][GO] Esito nel registro comandi');
   }
 
   void loadSafePosition() {
@@ -4713,7 +4574,8 @@ class LaserPageController {
     debugPrint('[SAFE_TRACE][LOCAL][SAVE] disabled');
   }
 
-  Future<void> deleteSafePosition() async {
+  Future<void> deleteSafePosition({bool notifyRobot = true}) async {
+    final send = _sessionSender();
     debugPrint('[SAFE_TRACE][LOCAL][DELETE] clear local+robot cache');
     safePositionNotifier.value = null;
     robotSafePositionCurrentRaw = null;
@@ -4722,7 +4584,7 @@ class LaserPageController {
     box.eraseKey(
         key:
             "${Constants.HIVE_LASER_SAFE_POSITION_KEY}_${settings.serialeRobot}");
-    await sendMessageToRobot({"f": "CLEARSAFEPOSITION"});
+    if (notifyRobot) await send({"f": "CLEARSAFEPOSITION"});
   }
 
   // FREE DRAW AREA
@@ -4732,6 +4594,7 @@ class LaserPageController {
   // + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +
 
   Future<void> addCurrentPoint({required BuildContext context}) async {
+    final send = _sessionSender();
     if (!_ensureRobotReadyForAction(context, actionLabel: "prendere punti")) {
       return;
     }
@@ -4777,7 +4640,7 @@ class LaserPageController {
       print("[getPoint] SETPOINT CALLED");
       _setCanTakePoint(false);
       try {
-        await sendMessageToRobot({
+        await send({
           "f": "SETPOINT",
           "point": newPoint,
           "allontanamento_x": settings.scostamentoX,

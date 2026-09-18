@@ -186,8 +186,10 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
   }
 
   Future<void> _startStressTest() async {
+    final session = widget.laserPageController.robotSession;
     if (_stressRunning) return;
-    if (widget.laserPageController.socket == null) {
+    if (widget.laserPageController.socket == null ||
+        widget.laserPageController.robotSession != session) {
       Messenger.showMessageGenericError(
         context,
         'Robot non connesso: connettere il robot prima dello stress test',
@@ -206,7 +208,8 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
       // ── 300 passi a DESTRA ────────────────────────────────────────
       _appendStressLog('Ciclo #$cycle — inizio $stepsPerLeg DESTRA');
       for (int i = 0; i < stepsPerLeg && _stressRunning; i++) {
-        if (widget.laserPageController.socket == null) {
+        if (widget.laserPageController.socket == null ||
+            widget.laserPageController.robotSession != session) {
           _appendStressLog('Socket non disponibile, test interrotto');
           _stressRunning = false;
           break;
@@ -219,10 +222,17 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
           'deltaj6': '0',
         };
         try {
-          await widget.laserPageController.sendMessageToRobot(
+          final receipt = await widget.laserPageController.sendMessageToRobot(
             msg,
             postSendDelay: Duration.zero,
+            expectedSession: session,
           );
+          if (!receipt.accepted) {
+            _stressErrors++;
+            _appendStressLog(receipt.outcome.reason);
+            _stressRunning = false;
+            break;
+          }
           _stressSent++;
           _appendStressLog(
               '[DESTRA] #${i + 1}/$stepsPerLeg TX: ${msg.toString()}');
@@ -245,7 +255,8 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
       // ── 300 passi a SINISTRA ──────────────────────────────────────
       _appendStressLog('Ciclo #$cycle — inizio $stepsPerLeg SINISTRA');
       for (int i = 0; i < stepsPerLeg && _stressRunning; i++) {
-        if (widget.laserPageController.socket == null) {
+        if (widget.laserPageController.socket == null ||
+            widget.laserPageController.robotSession != session) {
           _appendStressLog('Socket non disponibile, test interrotto');
           _stressRunning = false;
           break;
@@ -258,10 +269,17 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
           'deltaj6': '0',
         };
         try {
-          await widget.laserPageController.sendMessageToRobot(
+          final receipt = await widget.laserPageController.sendMessageToRobot(
             msg,
             postSendDelay: Duration.zero,
+            expectedSession: session,
           );
+          if (!receipt.accepted) {
+            _stressErrors++;
+            _appendStressLog(receipt.outcome.reason);
+            _stressRunning = false;
+            break;
+          }
           _stressSent++;
           _appendStressLog(
               '[SINISTRA] #${i + 1}/$stepsPerLeg TX: ${msg.toString()}');
@@ -332,15 +350,17 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
     int tx,
     int ty,
     int intervalMs,
+    int session,
   ) async {
     int steps = 0;
     int rx = cx, ry = cy;
     while ((rx != tx || ry != ty) && _testPuntiRunning) {
-      if (widget.laserPageController.socket == null) return -1;
+      if (widget.laserPageController.socket == null ||
+          widget.laserPageController.robotSession != session) return -1;
       final dx = (tx - rx).clamp(-1, 1);
       final dy = (ty - ry).clamp(-1, 1);
       try {
-        await widget.laserPageController.sendMessageToRobot(
+        final receipt = await widget.laserPageController.sendMessageToRobot(
           <String, dynamic>{
             'f': 'MOVE',
             'deltax': dx.toDouble().toStringAsFixed(1),
@@ -349,20 +369,28 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
             'deltaj6': '0',
           },
           postSendDelay: Duration.zero,
+          expectedSession: session,
         );
+        if (!receipt.accepted) return -1;
         rx += dx;
         ry += dy;
         steps++;
       } catch (e) {
-        // Errore silenziato, può essere loggato se necessario
+        _appendTestPuntiLog('Errore invio MOVE: $e');
+        return -1;
+      }
+      if (_testPuntiRunning) {
+        await Future.delayed(Duration(milliseconds: intervalMs));
       }
     }
     return steps;
   }
 
   Future<void> _startTestPunti() async {
+    final session = widget.laserPageController.robotSession;
     if (_testPuntiRunning) return;
-    if (widget.laserPageController.socket == null) {
+    if (widget.laserPageController.socket == null ||
+        widget.laserPageController.robotSession != session) {
       Messenger.showMessageGenericError(
         context,
         'Robot non connesso: connettere il robot prima del test',
@@ -399,7 +427,8 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
           'Vertice ${k + 1}/$nVertici → ($tx, $ty)  Δ(${tx - posX}, ${ty - posY})  ~$totalSteps passi',
         );
 
-        final sent = await _moveSegment(posX, posY, tx, ty, intervalMs);
+        final sent =
+            await _moveSegment(posX, posY, tx, ty, intervalMs, session);
         if (sent < 0) {
           _appendTestPuntiLog('Movimento interrotto — stop ciclo');
           _testPuntiRunning = false;
@@ -408,7 +437,7 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
         posX = tx;
         posY = ty;
         _appendTestPuntiLog(
-          'Vertice ${k + 1} raggiunto ($posX, $posY) — $sent MOVE inviati',
+          'Vertice ${k + 1} ($posX, $posY) — $sent MOVE affidati al socket; movimento non confermato',
         );
 
         if (!_testPuntiRunning) break;
@@ -430,7 +459,7 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
           isFirst: false,
         );
         try {
-          await widget.laserPageController.sendMessageToRobot(
+          final receipt = await widget.laserPageController.sendMessageToRobot(
             <String, dynamic>{
               'f': 'SETPOINT',
               'point': testPoint.toJson(),
@@ -443,9 +472,15 @@ class _LaserDiagnosticsPageState extends State<LaserDiagnosticsPage> {
               'assisted': 0,
             },
             postSendDelay: Duration.zero,
+            expectedSession: session,
           );
+          if (!receipt.accepted) {
+            _appendTestPuntiLog(receipt.outcome.reason);
+            _testPuntiRunning = false;
+            break;
+          }
           _appendTestPuntiLog(
-            'Punto #$_testPuntiPointsTaken acquisito'
+            'Punto #$_testPuntiPointsTaken richiesto (non confermato)'
             '  [x=${rp.x.toStringAsFixed(2)}'
             ' y=${rp.y.toStringAsFixed(2)}'
             ' z=${rp.z.toStringAsFixed(2)}]',

@@ -95,9 +95,10 @@ class _LaserDebugDialogState extends State<_LaserDebugDialog> {
 
     setState(() => _isSending = true);
     try {
-      await widget.controller.sendMessageToRobot(decoded);
+      final receipt = await widget.controller.sendMessageToRobot(decoded);
       if (mounted) {
-        _showSnackbar(context, 'Messaggio inviato.', success: true);
+        _showSnackbar(context, receipt.outcome.reason,
+            success: receipt.accepted);
       }
     } catch (e) {
       if (mounted) {

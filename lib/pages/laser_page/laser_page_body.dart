@@ -6,6 +6,7 @@ import 'package:grw_laser/pages/laser_page/components/laser_rectangle_commands.d
 import 'package:grw_laser/pages/laser_page/components/laser_taken_points_display.dart';
 import 'package:grw_laser/pages/laser_page/components/laser_point_actions_dock.dart';
 import 'package:grw_laser/pages/laser_page/components/laser_top_actions_bar.dart';
+import 'package:grw_laser/pages/laser_page/components/laser_communication_status.dart';
 import 'package:grw_laser/pages/laser_page/components/laser_direction_selector.dart';
 import 'package:grw_laser/pages/laser_page/components/laser_viewer_webview.dart';
 import 'package:grw_laser/pages/laser_page/components/laser_joystick_dashboard.dart';
@@ -93,6 +94,7 @@ class LaserPageBody extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               LaserTopActionsBar(controller: controller),
+              LaserCommunicationStatus(controller: controller),
               Expanded(
                 child: AbsorbPointer(
                   absorbing: controller.isWaitingHomeReach,
@@ -277,7 +279,8 @@ class _ExpandableViewer extends StatelessWidget {
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: LaserViewerWebview(controller: controller, onExpand: null),
+                  child: LaserViewerWebview(
+                      controller: controller, onExpand: null),
                 ),
                 Positioned(
                   top: 8,
