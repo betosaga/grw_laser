@@ -5,13 +5,29 @@ import 'package:grw_laser/services/color_service.dart';
 import 'package:grw_laser/services/pager.dart';
 import 'package:grw_laser/services/vibrator.dart';
 
-class SelectLaserRobotSettingsDialog extends StatelessWidget {
+class SelectLaserRobotSettingsDialog extends StatefulWidget {
   final List<LaserRobotSettings> list;
 
   const SelectLaserRobotSettingsDialog({super.key, required this.list});
 
   @override
+  State<SelectLaserRobotSettingsDialog> createState() =>
+      _SelectLaserRobotSettingsDialogState();
+}
+
+class _SelectLaserRobotSettingsDialogState
+    extends State<SelectLaserRobotSettingsDialog> {
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final list = widget.list;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
@@ -19,7 +35,7 @@ class SelectLaserRobotSettingsDialog extends StatelessWidget {
       backgroundColor: colors.surface,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-      constraints: const BoxConstraints(maxWidth: 448, maxHeight: 640),
+      constraints: const BoxConstraints(maxWidth: 448, maxHeight: 920),
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
       contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
@@ -70,13 +86,6 @@ class SelectLaserRobotSettingsDialog extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Scegli il robot con cui lavorare.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: colors.onSurfaceVariant,
-            ),
-          ),
         ],
       ),
       content: SizedBox(
@@ -92,9 +101,15 @@ class SelectLaserRobotSettingsDialog extends StatelessWidget {
                 ),
               )
             : Scrollbar(
+                controller: _scrollController,
+                thumbVisibility: true,
+                trackVisibility: true,
+                thickness: 6,
+                radius: const Radius.circular(8),
                 child: ListView.separated(
+                  controller: _scrollController,
                   shrinkWrap: true,
-                  padding: EdgeInsets.zero,
+                  padding: const EdgeInsets.only(right: 16),
                   itemCount: list.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (_, index) =>
