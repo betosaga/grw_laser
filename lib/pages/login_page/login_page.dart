@@ -66,12 +66,12 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
     try {
       final response = await Api.request({
-        "f": Constants.DEBUGMODE ? "doLoginFakeForTheAdmins" : "doLogin",
+        "f": Constants.LOGIN_UNLOCKED ? "doLoginFakeForTheAdmins" : "doLogin",
         "u": username.trim(),
         "p": Crypto.c(password),
         "d": await DeviceIdService.getDeviceID() ?? "",
         "pkg": DeviceInfoManager.packageName,
-        "plf": Platform.isIOS ? "iOS" : "android"
+        "plf": Platform.isIOS ? "iOS" : "android",
       });
 
       // salvo l'utente
@@ -110,7 +110,7 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         "version": DeviceInfoManager.version,
         "build": DeviceInfoManager.buildNumber,
         "packagename": DeviceInfoManager.packageName,
-        "platform": Platform.isIOS ? "iOS" : "android"
+        "platform": Platform.isIOS ? "iOS" : "android",
       }, verbose: false);
       //
       //
@@ -135,8 +135,9 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
         mySetState(() {
           isUpdateAvailable = true;
-          aggiornamentoLink =
-              dati['linkandroid'] != "" ? dati['linkandroid'] : dati['linkiOS'];
+          aggiornamentoLink = dati['linkandroid'] != ""
+              ? dati['linkandroid']
+              : dati['linkiOS'];
           linkaggiornamenti = dati['linkaggiornamenti'] ?? "";
         });
       } else if (dati['update'] == 0) {
@@ -183,21 +184,21 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   Future<void> showAggiornamentoPopup() async {
     while (true) {
       await showDialog(
-          barrierDismissible: false,
-          context: context,
-          builder: (context) {
-            return AlertDialog(
-              title: Text(
-                "Nuova versione disponibile",
+        barrierDismissible: false,
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: Text("Nuova versione disponibile"),
+            content: Text("Clicca qui per scaricarla"),
+            actions: [
+              TextButton(
+                onPressed: () => LaunchUrlService.launch(linkaggiornamenti),
+                child: Text("Aggiorna"),
               ),
-              content: Text("Clicca qui per scaricarla"),
-              actions: [
-                TextButton(
-                    onPressed: () => LaunchUrlService.launch(linkaggiornamenti),
-                    child: Text("Aggiorna"))
-              ],
-            );
-          });
+            ],
+          );
+        },
+      );
     }
   }
 
@@ -209,10 +210,12 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      DBManager.dbversionpref =
-          box.integerFor(key: Constants.DB_VERSION_STORED_KEY);
-      DBManager.buildCreateDB =
-          box.integerFor(key: Constants.BUILD_CREATE_STORED_KEY);
+      DBManager.dbversionpref = box.integerFor(
+        key: Constants.DB_VERSION_STORED_KEY,
+      );
+      DBManager.buildCreateDB = box.integerFor(
+        key: Constants.BUILD_CREATE_STORED_KEY,
+      );
 
       final updatesAvailable = await verificaAggiornamenti();
       if (updatesAvailable) {
@@ -244,183 +247,192 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     SizeConfig().init(context);
-    h = Theme.of(context)
-        .textTheme
-        .bodyLarge!
-        .copyWith(fontWeight: FontWeight.w500);
+    h = Theme.of(
+      context,
+    ).textTheme.bodyLarge!.copyWith(fontWeight: FontWeight.w500);
     return Stack(
       children: [
         const ColoredBox(color: Colors.white, child: SizedBox.expand()),
         SlideTransition(
           position: _slideOutAnimation,
           child: PopScope(
-        canPop: false,
-        child: Scaffold(
-          resizeToAvoidBottomInset: false,
-          body: Stack(children: <Widget>[
-            Image.asset(
-              'images/BACKGROUND-GRW-REPORTS.jpg',
-              colorBlendMode: BlendMode.darken,
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: double.infinity,
-            ),
-            Column(
-              children: <Widget>[
-                Divider(height: 10.h, color: Colors.transparent),
-                AppLogo(
-                  size: 340,
-                ),
-                Divider(height: 14, color: Colors.transparent),
-                Container(
-                    margin: EdgeInsets.only(left: 4.h, right: 4.h),
-                    decoration: BoxDecoration(
-                        border: Border.all(color: Color(0xFFcfd7dd)),
-                        borderRadius: BorderRadius.circular(14.px),
-                        color: Colors.white.withAlphaFromOpacity(alpha: 0.7)),
-                    child: Column(children: <Widget>[
-                      SizedBox(height: 32,),
+            canPop: false,
+            child: Scaffold(
+              resizeToAvoidBottomInset: false,
+              body: Stack(
+                children: <Widget>[
+                  Image.asset(
+                    'images/BACKGROUND-GRW-REPORTS.jpg',
+                    colorBlendMode: BlendMode.darken,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                  ),
+                  Column(
+                    children: <Widget>[
+                      Divider(height: 10.h, color: Colors.transparent),
+                      AppLogo(size: 340),
+                      Divider(height: 14, color: Colors.transparent),
                       Container(
-                        margin: EdgeInsets.symmetric(horizontal: 5.h),
-                        child: TextField(
-                          controller: controllerusername,
-                          autocorrect: false,
-                          autofocus: false,
-                          style: TextStyle(
-                            color: Colors.grey[800],
-                            fontWeight: FontWeight.w700,
-                            fontFamily: "OpenSans-Regular",
-                          ),
-                          decoration: InputDecoration(
-                              labelText: 'USERNAME',
-                              labelStyle: TextStyle(
-                                fontSize: FontSizeHelper.NORMAL_TEXT_MEDIUM,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: "OpenSans-Regular",
-                                letterSpacing: 2,
-                                color: Colors.grey[800],
-                              ),
-                              enabledBorder: UnderlineInputBorder(
-                                borderSide: BorderSide(
-                                    color: Colors.blue[400]!, width: 2.px),
-                              ),
-                              focusedBorder: UnderlineInputBorder(
-                                borderSide: BorderSide(
-                                    color: Colors.blue[400]!, width: 2.px),
-                              )),
+                        margin: EdgeInsets.only(left: 4.h, right: 4.h),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Color(0xFFcfd7dd)),
+                          borderRadius: BorderRadius.circular(14.px),
+                          color: Colors.white.withAlphaFromOpacity(alpha: 0.7),
                         ),
-                      ),
-                      Divider(height: 2.h, color: Colors.transparent),
-                      Container(
-                        margin: EdgeInsets.symmetric(horizontal: 5.h),
-                        child: TextField(
-                          controller: controllerpassword,
-                          autocorrect: false,
-                          autofocus: false,
-                          style: TextStyle(
-                            color: Colors.grey[800],
-                            fontWeight: FontWeight.w700,
-                            fontFamily: "OpenSans-Regular",
-                          ),
-                          obscureText: true,
-                          decoration: InputDecoration(
-                              labelText: 'PASSWORD',
-                              labelStyle: TextStyle(
-                                fontSize: FontSizeHelper.NORMAL_TEXT_MEDIUM,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: "OpenSans-Regular",
-                                letterSpacing: 2,
-                                color: Colors.grey[800],
+                        child: Column(
+                          children: <Widget>[
+                            SizedBox(height: 32),
+                            Container(
+                              margin: EdgeInsets.symmetric(horizontal: 5.h),
+                              child: TextField(
+                                controller: controllerusername,
+                                autocorrect: false,
+                                autofocus: false,
+                                style: TextStyle(
+                                  color: Colors.grey[800],
+                                  fontWeight: FontWeight.w700,
+                                  fontFamily: "OpenSans-Regular",
+                                ),
+                                decoration: InputDecoration(
+                                  labelText: 'USERNAME',
+                                  labelStyle: TextStyle(
+                                    fontSize: FontSizeHelper.NORMAL_TEXT_MEDIUM,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: "OpenSans-Regular",
+                                    letterSpacing: 2,
+                                    color: Colors.grey[800],
+                                  ),
+                                  enabledBorder: UnderlineInputBorder(
+                                    borderSide: BorderSide(
+                                      color: Colors.blue[400]!,
+                                      width: 2.px,
+                                    ),
+                                  ),
+                                  focusedBorder: UnderlineInputBorder(
+                                    borderSide: BorderSide(
+                                      color: Colors.blue[400]!,
+                                      width: 2.px,
+                                    ),
+                                  ),
+                                ),
                               ),
-                              enabledBorder: UnderlineInputBorder(
-                                borderSide: BorderSide(
-                                    color: Colors.blue[400]!, width: 2.px),
+                            ),
+                            Divider(height: 2.h, color: Colors.transparent),
+                            Container(
+                              margin: EdgeInsets.symmetric(horizontal: 5.h),
+                              child: TextField(
+                                controller: controllerpassword,
+                                autocorrect: false,
+                                autofocus: false,
+                                style: TextStyle(
+                                  color: Colors.grey[800],
+                                  fontWeight: FontWeight.w700,
+                                  fontFamily: "OpenSans-Regular",
+                                ),
+                                obscureText: true,
+                                decoration: InputDecoration(
+                                  labelText: 'PASSWORD',
+                                  labelStyle: TextStyle(
+                                    fontSize: FontSizeHelper.NORMAL_TEXT_MEDIUM,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: "OpenSans-Regular",
+                                    letterSpacing: 2,
+                                    color: Colors.grey[800],
+                                  ),
+                                  enabledBorder: UnderlineInputBorder(
+                                    borderSide: BorderSide(
+                                      color: Colors.blue[400]!,
+                                      width: 2.px,
+                                    ),
+                                  ),
+                                  focusedBorder: UnderlineInputBorder(
+                                    borderSide: BorderSide(
+                                      color: Colors.blue[400]!,
+                                      width: 2.px,
+                                    ),
+                                  ),
+                                ),
                               ),
-                              focusedBorder: UnderlineInputBorder(
-                                borderSide: BorderSide(
-                                    color: Colors.blue[400]!, width: 2.px),
-                              )),
-                        ),
-                      ),
-                      Divider(height: 5.h, color: Colors.transparent),
-                      click
-                          ? LoadingSpinner(color: Colors.blue)
-                          : isUpdateAvailable
-                              ? Container()
-                              : SizedBox(
-                                  height: 7.h,
-                                  child: TextButton(
-                                    onPressed: () async {
-                                      if (!isUpdateAvailable) {
-                                        if (!click) {
-                                          Vibrator.shortVibration();
-                                          mySetState(() {
-                                            click = true;
-                                          });
+                            ),
+                            Divider(height: 5.h, color: Colors.transparent),
+                            click
+                                ? LoadingSpinner(color: Colors.blue)
+                                : isUpdateAvailable
+                                ? Container()
+                                : SizedBox(
+                                    height: 7.h,
+                                    child: TextButton(
+                                      onPressed: () async {
+                                        if (!isUpdateAvailable) {
+                                          if (!click) {
+                                            Vibrator.shortVibration();
+                                            mySetState(() {
+                                              click = true;
+                                            });
 
-                                          if (controllerusername
-                                                  .text.isNotEmpty &&
-                                              controllerpassword
-                                                  .text.isNotEmpty) {
-                                            bool loginResult = await login(
+                                            if (controllerusername
+                                                    .text
+                                                    .isNotEmpty &&
+                                                controllerpassword
+                                                    .text
+                                                    .isNotEmpty) {
+                                              bool loginResult = await login(
                                                 controllerusername.text.trim(),
-                                                controllerpassword.text.trim());
+                                                controllerpassword.text.trim(),
+                                              );
 
-                                            if (loginResult) {
-                                              mySetState(() {
-                                                click = false;
-                                              });
-                                              if (UserSessionNest.isLogged) {
-                                                if (Constants.GODMODE) {
+                                              if (loginResult) {
+                                                mySetState(() {
+                                                  click = false;
+                                                });
+                                                if (UserSessionNest.isLogged) {
                                                   TTSService.speak(
-                                                      "benvenuto signor iddio onnipotente");
-                                                } else {
-                                                  TTSService.speak("benvenuto ${Constants.DEBUGMODE
-                                                          ? "Signore"
-                                                          : UserSessionNest
-                                                                  .utente!.nome
-                                                                  .toString() +
-                                                              UserSessionNest
-                                                                  .utente!
-                                                                  .cognome
-                                                                  .toString()}");
-                                                }
+                                                    "benvenuto ${Constants.LOGIN_UNLOCKED ? "Signore" : UserSessionNest.utente!.nome.toString() + UserSessionNest.utente!.cognome.toString()}",
+                                                  );
 
-                                                _navigateHome();
+                                                  _navigateHome();
+                                                }
+                                              } else {
+                                                mySetState(() {
+                                                  click = false;
+                                                });
                                               }
                                             } else {
-
+                                              Messenger.showMessageGeneric(
+                                                context,
+                                                "Non hai inserito Username e Password",
+                                                2,
+                                              );
                                               mySetState(() {
                                                 click = false;
                                               });
                                             }
-                                          } else {
-                                            Messenger.showMessageGeneric(
-                                                context,
-                                                "Non hai inserito Username e Password",
-                                                2);
-                                            mySetState(() {
-                                              click = false;
-                                            });
                                           }
-                                        }
-                                      } else {
-                                        Messenger.showMessageGeneric(
+                                        } else {
+                                          Messenger.showMessageGeneric(
                                             context,
                                             "Per effettuare il login devi prima aggiornare l'app all'ultima versione cliccando in fondo alla pagina.",
-                                            4);
-                                        mySetState(() {
-                                          click = false;
-                                        });
-                                      }
-                                    },
-                                    child: Ink(
-                                      decoration: BoxDecoration(
-                                          color:
-                                              Color.fromARGB(255, 82, 142, 196),
-                                          borderRadius:
-                                                BorderRadius.circular(14.px)),
-                                      child: Container(
+                                            4,
+                                          );
+                                          mySetState(() {
+                                            click = false;
+                                          });
+                                        }
+                                      },
+                                      child: Ink(
+                                        decoration: BoxDecoration(
+                                          color: Color.fromARGB(
+                                            255,
+                                            82,
+                                            142,
+                                            196,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            14.px,
+                                          ),
+                                        ),
+                                        child: Container(
                                           width: 250.px,
                                           alignment: Alignment.center,
                                           child: Stack(
@@ -442,58 +454,69 @@ class LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                                     MainAxisAlignment.end,
                                                 children: [
                                                   Padding(
-                                                      padding: EdgeInsets.only(
-                                                          right: 10.px),
-                                                      child: Container(
-                                                          height: 25.px,
-                                                          width: 25.px,
-                                                          decoration:
-                                                              BoxDecoration(
-                                                            shape:
-                                                                BoxShape.circle,
-                                                            color:
-                                                                Color.fromARGB(
-                                                                    255,
-                                                                    89,
-                                                                    98,
-                                                                    153),
-                                                          ),
-                                                          child: Icon(
-                                                            Icons.arrow_forward,
-                                                            color: Colors.white,
-                                                          )))
+                                                    padding: EdgeInsets.only(
+                                                      right: 10.px,
+                                                    ),
+                                                    child: Container(
+                                                      height: 25.px,
+                                                      width: 25.px,
+                                                      decoration: BoxDecoration(
+                                                        shape: BoxShape.circle,
+                                                        color: Color.fromARGB(
+                                                          255,
+                                                          89,
+                                                          98,
+                                                          153,
+                                                        ),
+                                                      ),
+                                                      child: Icon(
+                                                        Icons.arrow_forward,
+                                                        color: Colors.white,
+                                                      ),
+                                                    ),
+                                                  ),
                                                 ],
-                                              )
+                                              ),
                                             ],
-                                          )),
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ),
-                      if (Constants.DEBUGMODE)
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Divider(height: 10, color: Colors.transparent),
-                            Text(
-                              "UNLOCKED",
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 20,
-                                  color: Colors.black),
-                            ),
-                            Divider(height: 10, color: Colors.transparent),
+                            if (Constants.LOGIN_UNLOCKED)
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Divider(
+                                    height: 10,
+                                    color: Colors.transparent,
+                                  ),
+                                  Text(
+                                    "UNLOCKED",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 20,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                  Divider(
+                                    height: 10,
+                                    color: Colors.transparent,
+                                  ),
+                                ],
+                              ),
+                            Divider(height: 20, color: Colors.transparent),
+                            caricando ? LoadingSpinner() : Container(),
+                            SizedBox(height: 32),
                           ],
                         ),
-                      Divider(height: 20, color: Colors.transparent),
-                      caricando ? LoadingSpinner() : Container(),
-                      SizedBox(
-                        height: 32,
-                      )
-                    ])),
-              ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ])),
-        ),
+          ),
         ),
       ],
     );
