@@ -82,10 +82,13 @@ class LaserPageController {
   bool _syncingLegacyParameterControls = false;
   bool _legacyParameterBindingsInitialized = false;
   final RobotSocketConnector? robotSocketConnector;
+  bool _workModeConfirmed = false;
+  Future<bool>? _workModeSelection;
   LaserPageController(
       {required this.hubController,
       required this.settings,
       this.robotSocketConnector,
+      String? selectedWorkMode,
       this.tipoControrotaia = 'controrotaiasemplice'}) {
     for (final parametro in settings.parametri) {
       if (parametro.parametro.trim() == 'job.rail_type' &&
@@ -95,7 +98,14 @@ class LaserPageController {
         break;
       }
     }
+    if (selectedWorkMode != null) {
+      tipoControrotaia = _normalizeControrotaiaValue(selectedWorkMode);
+      _workModeConfirmed = true;
+      updateRobotParametroValue('job.rail_type', tipoControrotaia,
+          syncLegacyControls: false);
+    }
   }
+
   //
   //
   // * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - * - *
@@ -1163,7 +1173,9 @@ class LaserPageController {
       _initializeLegacyParameterBindings();
       _syncAllLegacyParameterControls();
 
-      buildReconnectionTimer();
+      if (await _ensureWorkModeSelected()) {
+        buildReconnectionTimer();
+      }
     });
   }
 
@@ -1789,6 +1801,10 @@ class LaserPageController {
   // * - * - * - * - * - * - * - * - * - *  Laser Globals - End - * - * - * - * - * - * - * - * - * - *
 
   Future<void> connettiRobot() async {
+    if (isDisposing || socket != null || _robotConnection.isConnecting) return;
+    // Una nuova connessione manuale richiede una nuova scelta dell'operatore.
+    destroyReconnectionTimer();
+    if (_workModeSelection == null) _workModeConfirmed = false;
     printLog("CONNETTI ROBOT");
     await startConnection();
   }
@@ -2707,8 +2723,32 @@ class LaserPageController {
     }
   }
 
+  Future<bool> _ensureWorkModeSelected() async {
+    if (isDisposing) return false;
+    final pending = _workModeSelection;
+    if (pending != null) return pending;
+    if (_workModeConfirmed) return true;
+    final selection = _selectWorkModeBeforeConnection();
+    _workModeSelection = selection;
+    try {
+      return await selection;
+    } finally {
+      _workModeSelection = null;
+    }
+  }
+
+  Future<bool> _selectWorkModeBeforeConnection() async {
+    final selected = await hubController.askTipoControrotaia(
+      serialeRobot: settings.serialeRobot,
+    );
+    if (selected == null || isDisposing) return false;
+    await setRobotSettings(newSettings: settings, selectedWorkMode: selected);
+    return !isDisposing;
+  }
+
   Future<void> startConnection() async {
     if (isDisposing || UNLOCK_PAGE_FOR_TEST) return;
+    if (!await _ensureWorkModeSelected() || isDisposing) return;
     buildReconnectionTimer();
     await _robotConnection.connect(settings.ipRobot);
   }
@@ -3282,7 +3322,6 @@ class LaserPageController {
         false;
 
     if (!confirmed) return;
-    buildReconnectionTimer();
     await connettiRobot();
     testolog = "";
     mySetState?.call(() {});
@@ -3302,6 +3341,7 @@ class LaserPageController {
 
     closeSocket();
     destroyReconnectionTimer();
+    _workModeConfirmed = false;
     mySetState?.call(() {
       connectionStatus = false;
       homeReachReceived = false;
@@ -3311,7 +3351,7 @@ class LaserPageController {
   }
 
   void buildReconnectionTimer() {
-    if (!isDisposing && !UNLOCK_PAGE_FOR_TEST) {
+    if (!isDisposing && !UNLOCK_PAGE_FOR_TEST && _workModeConfirmed) {
       _robotConnection.startReconnecting(settings.ipRobot);
     }
   }
@@ -3545,11 +3585,12 @@ class LaserPageController {
   }
 
   Future<void> setRobotSettings(
-      {required LaserRobotSettings newSettings}) async {
+      {required LaserRobotSettings newSettings, String? selectedWorkMode}) async {
     final send = _sessionSender();
     final oldMode = controrotaiaModeValue;
-    // job.rail_type è la fonte canonica quando è presente; il campo legacy
-    // resta il fallback per risposte di server meno recenti.
+    final settingsRefreshed = !identical(newSettings, settings);
+    // La scelta esplicita dell'operatore prevale sui default del server.
+    // Senza una nuova scelta, job.rail_type resta la fonte canonica.
     String? configuredRailType;
     for (final parametro in newSettings.parametri) {
       if (parametro.parametro.trim() == 'job.rail_type') {
@@ -3560,9 +3601,11 @@ class LaserPageController {
     final legacyRailType = newSettings.tipoControrotaia.trim().isNotEmpty
         ? newSettings.tipoControrotaia
         : tipoControrotaia;
-    final nextTipo = configuredRailType == null || configuredRailType.isEmpty
-        ? _normalizeControrotaiaValue(legacyRailType)
-        : _normalizeControrotaiaValue(configuredRailType);
+    final nextTipo = selectedWorkMode != null
+        ? _normalizeControrotaiaValue(selectedWorkMode)
+        : configuredRailType == null || configuredRailType.isEmpty
+            ? _normalizeControrotaiaValue(legacyRailType)
+            : _normalizeControrotaiaValue(configuredRailType);
 
     final connectionParamsChanged = _connectionParamChanged(
             newSettings.serialeRobot, settings.serialeRobot) ||
@@ -3618,13 +3661,17 @@ class LaserPageController {
     );
     //
     //
-    mySetState?.call(() {
-      settings = mergedSettings;
-      tipoControrotaia = nextTipo;
-    });
-    if (newSettings.parametri.isNotEmpty) {
+    settings = mergedSettings;
+    tipoControrotaia = nextTipo;
+    if (settingsRefreshed && newSettings.parametri.isNotEmpty) {
       clearDirtyRobotParametri();
     }
+    if (selectedWorkMode != null) {
+      _workModeConfirmed = true;
+      updateRobotParametroValue('job.rail_type', nextTipo,
+          syncLegacyControls: false);
+    }
+    mySetState?.call(() {});
     //
     //
     final modeChanged = oldMode != controrotaiaModeValue;

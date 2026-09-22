@@ -30,6 +30,7 @@ void main() {
   LaserPageController controller(List<FakeRobotSocket> sockets) {
     final result = LaserPageController(
       hubController: LaserPageHubController(),
+      selectedWorkMode: 'controrotaiasemplice',
       settings: LaserRobotSettings(
         serialeRobot: 'TEST',
         ipRobot: '127.0.0.1',
@@ -101,6 +102,51 @@ void main() {
     expect(sockets.last.writes, isEmpty);
     await tester.pump(const Duration(milliseconds: 1500));
     expect(sockets.last.writes.map(jsonDecode).single['f'], 'SETMODE');
+    c.onDispose();
+  });
+
+  testWidgets('late HOMEREACH and prolonged silence keep the same connection',
+      (tester) async {
+    final sockets = <FakeRobotSocket>[];
+    final c = controller(sockets);
+    await c.startConnection();
+    final socket = sockets.single;
+    socket.message({'f': 'listening'});
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1500));
+    expect(socket.writes.map(jsonDecode).single['f'], 'SETMODE');
+
+    // Even when SETMODE has no reply, neither its timeout nor the reconnect
+    // timer may close a healthy socket or send the initialization again.
+    await tester.pump(const Duration(minutes: 30));
+    expect(c.robotCommandHistory.single.outcome.status,
+        RobotCommandStatus.unknown);
+    expect(c.connectionStatus, isTrue);
+    expect(c.isWaitingHomeReach, isTrue);
+    expect(c.socket, same(socket));
+    expect(socket.destroyed, isFalse);
+    expect(sockets, hasLength(1));
+    expect(socket.writes, hasLength(1));
+
+    socket.message({
+      'f': 'RobotStatus',
+      'Status': 'HOMEREACH',
+      'Position': [10, 20, 30, 0, 0, 0],
+      'armPosition': 'DX',
+    });
+    await tester.pump();
+    expect(c.homeReachReceived, isTrue);
+    expect(c.isWaitingHomeReach, isFalse);
+
+    // Once HOME is reached, a lack of telemetry must not reset that state.
+    await tester.pump(const Duration(minutes: 30));
+    expect(c.connectionStatus, isTrue);
+    expect(c.homeReachReceived, isTrue);
+    expect(c.isWaitingHomeReach, isFalse);
+    expect(c.socket, same(socket));
+    expect(socket.destroyed, isFalse);
+    expect(sockets, hasLength(1));
+    expect(socket.writes, hasLength(1));
     c.onDispose();
   });
 

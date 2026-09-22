@@ -94,6 +94,7 @@ class LaserPageHubController {
   Future<void> selectRobotPressed() async {
     if (context == null) return;
     await fetchRobotList();
+    if (context == null || !context!.mounted) return;
     final LaserRobotSettings? selectedSettings =
         await showDialog<LaserRobotSettings?>(
       barrierDismissible: false,
@@ -112,11 +113,19 @@ class LaserPageHubController {
         return;
       }
 
+      final tipoControrotaia = await askTipoControrotaia(
+        serialeRobot: selectedRobotSerial,
+      );
+      if (tipoControrotaia == null || context == null || !context!.mounted) return;
+
       final existingPageIndex = laserPages.indexWhere((page) =>
           page.controller.settings.serialeRobot.trim() == selectedRobotSerial);
       if (existingPageIndex >= 0) {
         await laserPages[existingPageIndex].controller
-            .setRobotSettings(newSettings: selectedRobotDetail);
+            .setRobotSettings(
+              newSettings: selectedRobotDetail,
+              selectedWorkMode: tipoControrotaia,
+            );
         storeSettingsListToDisk();
         mySetState?.call(() {});
         if (pageController.hasClients) {
@@ -126,22 +135,10 @@ class LaserPageHubController {
         return;
       }
 
-      String? tipoControrotaia;
-      if (selectedRobotDetail.tipoControrotaia.trim().isNotEmpty &&
-          selectedRobotDetail.tipoControrotaia.trim() != '0') {
-        tipoControrotaia =
-            _normalizeTipoControrotaia(selectedRobotDetail.tipoControrotaia);
-      } else {
-        tipoControrotaia = await _askTipoControrotaia();
-      }
-      if (tipoControrotaia == null) {
-        return;
-      }
-
       final newLaserController = LaserPageController(
           hubController: this,
           settings: selectedRobotDetail,
-          tipoControrotaia: tipoControrotaia);
+          selectedWorkMode: tipoControrotaia);
       final newLaserPage = LaserPage(controller: newLaserController);
 
       laserPages.add(newLaserPage);
@@ -179,8 +176,22 @@ class LaserPageHubController {
   //
   //
   //
-  Future<String?> _askTipoControrotaia() async {
-    if (context == null) return null;
+  Future<void> _modeDialogQueue = Future<void>.value();
+
+  Future<String?> askTipoControrotaia({String? serialeRobot}) {
+    // Le pagine ripristinate possono richiedere la modalità contemporaneamente.
+    final request = _modeDialogQueue.then(
+      (_) => _showTipoControrotaiaDialog(serialeRobot: serialeRobot),
+    );
+    _modeDialogQueue = request.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return request;
+  }
+
+  Future<String?> _showTipoControrotaiaDialog({String? serialeRobot}) async {
+    if (context == null || !context!.mounted) return null;
     return showDialog<String>(
       context: context!,
       barrierDismissible: false,
@@ -197,8 +208,10 @@ class LaserPageHubController {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Seleziona il tipo di controrotaia da lavorare',
+              Text(
+                serialeRobot == null
+                    ? 'Seleziona il tipo di controrotaia da lavorare'
+                    : 'Robot $serialeRobot\nSeleziona il tipo di controrotaia da lavorare',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
