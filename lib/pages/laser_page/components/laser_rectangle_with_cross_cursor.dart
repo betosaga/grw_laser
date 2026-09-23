@@ -526,11 +526,12 @@ class LaserRectangleWithCrossCursorState
 
     final bool canGenerate;
     if (widget.controller.modalitaNuvola) {
-      // Nuvola: almeno 4 punti totali, di cui ≥2 base e ≥2 limite (tra i punti perimetro ordinati)
+      // Nuvola: base e limite devono essere tutti numerati; i punti liberi sono esclusi.
       final orderedPoints = orderablePoints.where((p) => p.order != null).toList();
       final baseCount = orderedPoints.where((p) => p.isBase).length;
       final limiteCount = orderedPoints.where((p) => p.isLimite).length;
-      canGenerate = orderedPoints.length >= 4 &&
+      canGenerate = widget.controller.areCloudCurvePointsOrdered &&
+          orderedPoints.length >= 4 &&
           baseCount >= 2 &&
           limiteCount >= 2;
     } else {

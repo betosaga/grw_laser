@@ -868,6 +868,16 @@ class LaserPageController {
     canGeneratePointsNotifier.value = value;
   }
 
+  bool get areCloudCurvePointsOrdered => !points.points.any(
+      (point) => (point.isBase || point.isLimite) && point.order == null);
+
+  bool _ensureCloudCurvePointsOrdered(BuildContext? context) {
+    if (!modalitaNuvola || areCloudCurvePointsOrdered) return true;
+    Messenger.showMessageGenericError(context,
+        "Assegna un numero di perimetro a tutti i punti BASE e LIMITE", 3);
+    return false;
+  }
+
   final box = HiveDiskEncoder();
 
   // Shared tablet preference, read from Hive so all robot pages use the latest
@@ -3034,6 +3044,8 @@ class LaserPageController {
         return;
       }
 
+      if (!_ensureCloudCurvePointsOrdered(context)) return;
+
       int? startingCordone;
 
       if (stratiEseguiti[settings.serialeRobot]![p].lastCordone > 0) {
@@ -3078,7 +3090,7 @@ class LaserPageController {
       //
       //
       //
-      // Entrambe le modalità usano l'ordinamento (perimetro mode)
+      // Invia solo il perimetro ordinato; i punti liberi restano nel grafico.
       final List<Point> weldPoints = points.points
           .where((point) => point.order != null)
           .toList()
@@ -4135,7 +4147,9 @@ class LaserPageController {
     try {
       //
       //
-      // Entrambe le modalità usano ora l'ordinamento (perimetro mode re-abilitato per nuvola)
+      // Invia solo il perimetro ordinato; i punti liberi restano nel grafico.
+      if (!_ensureCloudCurvePointsOrdered(context)) return;
+
       final List<Point> effectivePoints = points.points
           .where((point) => point.order != null)
           .toList()
@@ -4156,17 +4170,6 @@ class LaserPageController {
       ];
 
       if (modalitaNuvola) {
-        final puntiSenzaOrdine =
-            points.points.where((p) => p.order == null).length;
-        if (puntiSenzaOrdine > 0) {
-          Messenger.showMessageGenericError(
-              context,
-              "Perimetro incompleto: $puntiSenzaOrdine "
-              "${puntiSenzaOrdine == 1 ? 'punto non ha' : 'punti non hanno'} "
-              "un ordinamento assegnato",
-              3);
-          return;
-        }
         if (cordoneBase.length < 2) {
           Messenger.showMessageGenericError(
               context, "Base non definita: seleziona almeno 2 punti BASE", 3);
