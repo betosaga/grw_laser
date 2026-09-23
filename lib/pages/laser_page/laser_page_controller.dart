@@ -3162,12 +3162,16 @@ class LaserPageController {
       //
       //
       //
-      _applyExecutionRobotParameters({
+      // La geometria viene sempre inviata, anche senza voci nei parametri robot.
+      final pointPayload = <String, dynamic>{
         'path.base_points': puntiBase,
         'path.point_order': ordine,
         'path.base_curve_indices': modalitaNuvola ? cordoneBase : null,
         'path.limit_curve_indices': modalitaNuvola ? cordoneLimite : null,
         'path.perimeter_order': modalitaNuvola ? ordine : null,
+      };
+      _applyExecutionRobotParameters({
+        ...pointPayload,
         'path.step_mm': stepCordoni,
         'path.start_offset_mm': _parseDoubleOrDefault(
             offsetinizioController[stratoIndex].text,
@@ -3219,6 +3223,7 @@ class LaserPageController {
         "f": "WELD",
         "safeposition": safePositionDecoded,
         ..._robotParametriPayload(),
+        ...pointPayload,
       });
       //
       //
@@ -4203,12 +4208,16 @@ class LaserPageController {
 
       final safePositionDecoded = _safePositionPayloadForRobotCommands();
 
-      _applyExecutionRobotParameters({
+      // La geometria viene sempre inviata, anche senza voci nei parametri robot.
+      final pointPayload = <String, dynamic>{
         'path.base_points': puntiBase,
         'path.point_order': ordine,
         'path.base_curve_indices': modalitaNuvola ? cordoneBase : null,
         'path.limit_curve_indices': modalitaNuvola ? cordoneLimite : null,
         'path.perimeter_order': modalitaNuvola ? ordine : null,
+      };
+      _applyExecutionRobotParameters({
+        ...pointPayload,
         'path.step_mm': stepCordoni,
         'path.start_offset_mm': _parseDoubleOrDefault(
             offsetinizioController[stratoIndex].text,
@@ -4242,6 +4251,7 @@ class LaserPageController {
       final payload = {
         "safeposition": safePositionDecoded,
         ..._robotParametriPayload(),
+        ...pointPayload,
       };
 
       final pointsToSend = jsonEncode(payload);
