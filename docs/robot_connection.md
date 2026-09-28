@@ -11,6 +11,13 @@ immediatamente la sessione: un tentativo che termina in ritardo distrugge il
 proprio socket, senza riaprire la pagina o sostituire la connessione attuale.
 Una nuova sessione usa un nuovo buffer JSON e un nuovo decoder UTF-8 incrementale.
 
+L'indirizzo TCP proviene da `settings.ipRobot` del robot selezionato, ripulito
+dagli spazi esterni. Quando le impostazioni cambiano IP, il nuovo indirizzo viene
+salvato e la connessione attiva o in corso viene sostituita subito. Un tentativo
+ancora pendente sul vecchio IP non blocca quello nuovo; se termina in ritardo,
+il suo socket viene chiuso senza interferire con la nuova sessione. Anche i
+successivi tentativi automatici usano il nuovo IP.
+
 Il protocollo viene elaborato nell'ordine di ricezione, senza `await` nei
 gestori dello stato. Il ritardo di 1,5 secondi tra `listening` e `SETMODE` è
 conservato come timer annullabile. Le chiamate WebView hanno una coda separata;

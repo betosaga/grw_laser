@@ -3639,8 +3639,8 @@ class LaserPageController {
           ? newSettings.serialeRobot
           : settings.serialeRobot,
       ipRobot: newSettings.ipRobot.trim().isNotEmpty
-          ? newSettings.ipRobot
-          : settings.ipRobot,
+          ? newSettings.ipRobot.trim()
+          : settings.ipRobot.trim(),
       ipServer: newSettings.ipServer.trim().isNotEmpty
           ? newSettings.ipServer
           : settings.ipServer,
@@ -3713,6 +3713,8 @@ class LaserPageController {
       _applyFixedDirezioneSaldaturaForTipo();
     }
 
+    hubController.storeSettingsListToDisk();
+
     if (connectionParamsChanged &&
         (socket != null ||
             _robotConnection.isConnecting ||
@@ -3726,8 +3728,6 @@ class LaserPageController {
     if (modeChanged && socket != null) {
       await send({"f": "SETMODE", "tipo_controrotaia": controrotaiaModeValue});
     }
-
-    hubController.storeSettingsListToDisk();
   }
 
   /// Cambia il tipo controrotaia a runtime e invia SETMODE al robot.

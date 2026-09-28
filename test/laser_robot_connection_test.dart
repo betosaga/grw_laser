@@ -6,10 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grw_laser/configuration/constants.dart';
 import 'package:grw_laser/pages/laser_page/components/laser_log_window.dart';
+import 'package:grw_laser/pages/laser_page/laser_page.dart';
 import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
 import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_settings.dart';
 import 'package:grw_laser/pages/laser_page_hub/laser_page_hub_controller.dart';
 import 'package:grw_laser/services/robot/robot_command.dart';
+import 'package:grw_laser/services/robot/robot_connection.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'support/fake_robot_socket.dart';
@@ -27,20 +29,21 @@ void main() {
     await hiveDirectory.delete(recursive: true);
   });
 
-  LaserPageController controller(List<FakeRobotSocket> sockets) {
+  LaserPageController controller(List<FakeRobotSocket> sockets,
+      {String ipRobot = '127.0.0.1', RobotSocketConnector? connector}) {
     final result = LaserPageController(
       hubController: LaserPageHubController(),
       selectedWorkMode: 'controrotaiasemplice',
       settings: LaserRobotSettings(
         serialeRobot: 'TEST',
-        ipRobot: '127.0.0.1',
-        ipServer: '127.0.0.1',
+        ipRobot: ipRobot,
+        ipServer: '127.0.0.99',
         pinGas: '1',
         pinLaser: '3',
         pinMassa: '4',
         color: '',
       ),
-      robotSocketConnector: (_, __, ___) async {
+      robotSocketConnector: connector ?? (_, __, ___) async {
         final socket = FakeRobotSocket();
         sockets.add(socket);
         return socket;
@@ -49,6 +52,77 @@ void main() {
     result.mySetState = (callback) => callback?.call();
     addTearDown(result.onDispose);
     return result;
+  }
+
+  testWidgets('each selected robot connects to its configured robot IP',
+      (tester) async {
+    final destinations = <String>[];
+    Future<Socket> connect(String host, int port, Duration _) async {
+      destinations.add('$host:$port');
+      return FakeRobotSocket();
+    }
+    final first = controller([], ipRobot: '192.168.1.10', connector: connect);
+    final second = controller([], ipRobot: '192.168.1.20', connector: connect);
+    await first.startConnection();
+    await second.startConnection();
+    expect(destinations, ['192.168.1.10:20002', '192.168.1.20:20002']);
+    first.onDispose();
+    second.onDispose();
+  });
+
+  for (final pending in [false, true]) {
+    testWidgets('settings IP change replaces connection (pending=$pending)',
+        (tester) async {
+      final oldAttempt = Completer<Socket>();
+      final oldSocket = FakeRobotSocket();
+      final newSocket = FakeRobotSocket();
+      final reconnectSocket = FakeRobotSocket();
+      final hosts = <String>[];
+      final ports = <int>[];
+      final c = controller([], connector: (host, port, _) async {
+        hosts.add(host);
+        ports.add(port);
+        if (host == '127.0.0.1') {
+          return pending ? oldAttempt.future : oldSocket;
+        }
+        return hosts.length == 2 ? newSocket : reconnectSocket;
+      });
+      c.hubController.laserPages.add(LaserPage(controller: c));
+      unawaited(c.startConnection());
+      await tester.pump();
+      expect(hosts, ['127.0.0.1']);
+
+      await tester.runAsync(() async {
+        unawaited(c.setRobotSettings(newSettings: LaserRobotSettings.fromJson({
+          ...c.settings.toJson(),
+          'ip_robot': ' 127.0.0.2 ',
+        })));
+        await Future<void>.delayed(Duration.zero);
+      });
+      await tester.pump();
+      expect(hosts, ['127.0.0.1', '127.0.0.2']);
+      expect(c.socket, same(newSocket));
+      expect(c.connectionStatus, isTrue);
+      expect(c.settings.ipRobot, '127.0.0.2');
+      final stored = jsonDecode(Hive.box(Constants.HIVE_BOX_NAME)
+          .get(Constants.HIVE_LASER_SETTINGS_LIST_KEY) as String) as List;
+      expect(stored.single['ip_robot'], '127.0.0.2');
+
+      if (pending) {
+        oldAttempt.complete(oldSocket);
+        await tester.pump();
+      }
+      expect(oldSocket.destroyed, isTrue);
+      expect(c.socket, same(newSocket));
+      await c.sendMessageToRobot({'f': 'TEST'});
+      expect(jsonDecode(newSocket.writes.single)['f'], 'TEST');
+      c.closeSocket();
+      await tester.pump(const Duration(seconds: 5));
+      expect(hosts, ['127.0.0.1', '127.0.0.2', '127.0.0.2']);
+      expect(ports, [20002, 20002, 20002]);
+      expect(c.socket, same(reconnectSocket));
+      c.onDispose();
+    });
   }
 
   testWidgets('logs refresh their window without rebuilding robot controls',

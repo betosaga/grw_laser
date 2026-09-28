@@ -290,6 +290,58 @@ void main() {
     f.connection.dispose();
   });
 
+  testWidgets('new host connects immediately while old attempt is pending',
+      (tester) async {
+    final oldAttempt = Completer<Socket>();
+    final newAttempt = Completer<Socket>();
+    final hosts = <String>[];
+    final f = Fixture(tester, connector: (host, port, _) {
+      hosts.add(host);
+      expect(port, 20002);
+      return host == 'old' ? oldAttempt.future : newAttempt.future;
+    });
+    unawaited(f.connection.connect('old'));
+    unawaited(f.connection.connect('new'));
+    await tester.pump();
+    expect(hosts, ['old', 'new']);
+
+    // Completing the obsolete attempt must not clear the current attempt.
+    final obsolete = FakeRobotSocket();
+    oldAttempt.complete(obsolete);
+    await tester.pump();
+    expect(obsolete.destroyed, isTrue);
+    expect(f.connection.isConnecting, isTrue);
+    unawaited(f.connection.connect('new'));
+    await tester.pump();
+    expect(hosts, ['old', 'new']);
+
+    final current = FakeRobotSocket();
+    newAttempt.complete(current);
+    await tester.pump();
+    expect(f.connection.socket, same(current));
+    expect(f.connection.isConnecting, isFalse);
+    f.connection.dispose();
+  });
+
+  testWidgets('host whitespace is ignored for connect and reconnect',
+      (tester) async {
+    final hosts = <String>[];
+    final f = Fixture(tester, connector: (host, _, __) async {
+      hosts.add(host);
+      return FakeRobotSocket();
+    });
+    await f.connection.connect(' 192.168.1.42 ');
+    final current = f.connection.socket;
+    f.connection.startReconnecting('192.168.1.42');
+    await tester.pump(const Duration(seconds: 5));
+    expect(hosts, ['192.168.1.42']);
+    expect(f.connection.socket, same(current));
+    f.connection.disconnect();
+    await tester.pump(const Duration(seconds: 5));
+    expect(hosts, ['192.168.1.42', '192.168.1.42']);
+    f.connection.dispose();
+  });
+
   testWidgets('connect failure recovers once; manual stop prevents recovery', (
     tester,
   ) async {

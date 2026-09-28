@@ -81,6 +81,7 @@ class RobotConnection {
   }
 
   void _setHost(String host) {
+    host = host.trim();
     if (_host != host && (_socket != null || _connecting != null)) {
       disconnect(reason: 'Indirizzo robot cambiato');
     }
@@ -93,7 +94,7 @@ class RobotConnection {
     if (_connecting != null) return _connecting!;
     if (_socket != null) return Future.value();
     final epoch = ++_session;
-    final attempt = _open(host, epoch);
+    final attempt = _open(_host, epoch);
     _connecting = attempt;
     return attempt.whenComplete(() {
       if (identical(_connecting, attempt)) _connecting = null;
@@ -340,6 +341,8 @@ class RobotConnection {
   void disconnect({String reason = 'Connessione chiusa'}) {
     final epoch = _session;
     ++_session; // Invalidates connect futures, callbacks and delayed work first.
+    // An obsolete connect may still complete, but must not block the new host.
+    _connecting = null;
     for (final timer in _sessionTimers) {
       timer.cancel();
     }
