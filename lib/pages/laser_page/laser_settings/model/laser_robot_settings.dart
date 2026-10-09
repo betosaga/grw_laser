@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_limite.dart';
 import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_parametro.dart';
+import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_server_address.dart';
 
 LaserRobotSettings robotLaserSettingsFromJson(String str) =>
     LaserRobotSettings.fromJson(json.decode(str));
@@ -42,6 +43,16 @@ class LaserRobotSettings {
   final String tipoControrotaia;
   final List<LaserRobotLimite> limiti;
   final List<LaserRobotParametro> parametri;
+
+  String get serverAddress {
+    final values = {for (final parameter in parametri)
+      parameter.parametro.trim(): parameter.valore};
+    return LaserServerAddress.resolve(
+      legacy: ipServer,
+      host: values['network.fastapi.host']?.toString(),
+      port: values['network.fastapi.port'],
+    );
+  }
 
   LaserRobotSettings(
       {required this.serialeRobot,

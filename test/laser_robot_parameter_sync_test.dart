@@ -1,8 +1,10 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grw_laser/configuration/constants.dart';
 import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
+import 'package:grw_laser/pages/laser_page/laser_settings/laser_robot_parametri_page.dart';
 import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_parametro.dart';
 import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_settings.dart';
 import 'package:grw_laser/pages/laser_page_hub/laser_page_hub_controller.dart';
@@ -81,22 +83,22 @@ void main() {
     final pointOrder = _parametro(
       'path.point_order',
       <dynamic>[],
-      tipo: 'array',
+      tipo: 'array<int>',
     );
     final baseIndices = _parametro(
       'path.base_curve_indices',
       <dynamic>[],
-      tipo: 'array',
+      tipo: 'array<int>',
     );
     final limitIndices = _parametro(
       'path.limit_curve_indices',
       <dynamic>[],
-      tipo: 'array',
+      tipo: 'array<int>',
     );
     final perimeterOrder = _parametro(
       'path.perimeter_order',
       <dynamic>[],
-      tipo: 'array',
+      tipo: 'array<int>',
     );
     final controller = _controller([
       basePoints,
@@ -126,5 +128,30 @@ void main() {
 
     expect((basePoints.valore as List).first.first, 42);
     expect(pointOrder.valore, [0, 1]);
+    expect(
+      controller.dirtyRobotParametriPayload(),
+      contains(equals({'parametro': 'path.point_order', 'valore': [0, 1]})),
+    );
+  });
+
+  testWidgets('il campo array<int> aggiorna il payload come lista', (tester) async {
+    final pointOrder = _parametro('path.point_order', [0, 1], tipo: 'array<int>');
+    final controller = _controller([pointOrder]);
+    await tester.pumpWidget(MaterialApp(
+      home: LaserRobotParametriPage(laserPageController: controller),
+    ));
+    await tester.tap(find.text('Test'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Inserisci JSON valido'), findsOneWidget);
+    await tester.enterText(find.byType(TextFormField), '[1,0]');
+
+    expect(pointOrder.valore, [1, 0]);
+    expect(controller.dirtyRobotParametriPayload(), [
+      {'parametro': 'path.point_order', 'valore': [1, 0]},
+    ]);
+    await tester.enterText(find.byType(TextFormField), '[invalid');
+    expect(pointOrder.valore, [1, 0]);
+    await tester.pumpAndSettle();
   });
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:grw_laser/configuration/app_colors.dart';
@@ -22,6 +23,7 @@ import 'package:grw_laser/pages/laser_page/laser_settings/laser_settings_page.da
 import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_limite.dart';
 import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_parametro.dart';
 import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_settings.dart';
+import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_server_address.dart';
 import 'package:grw_laser/pages/laser_page/laser_simulation_page.dart';
 import 'package:grw_laser/pages/laser_page/model/safe_position.dart';
 import 'package:grw_laser/pages/laser_page_hub/laser_page_hub_controller.dart';
@@ -763,14 +765,17 @@ class LaserPageController {
     }
   }
 
+  String get effectiveServerAddress => LaserServerAddress.resolve(
+        legacy: settings.ipServer,
+        host: robotParametroValue('network.fastapi.host')?.toString(),
+        port: robotParametroValue('network.fastapi.port'),
+        hostChanged: isRobotParametroDirty('network.fastapi.host'),
+        portChanged: isRobotParametroDirty('network.fastapi.port'),
+      );
+
   String get serverBaseUrl {
-    final configuredHost =
-        robotParametroValue('network.fastapi.host', fallback: settings.ipServer)
-            .toString();
-    final host = configuredHost.contains(':')
-        ? configuredHost.split(':').first
-        : configuredHost;
-    return 'http://$host';
+    final address = effectiveServerAddress;
+    return address.contains('://') ? address : 'http://$address';
   }
 
   String get effectivePinGas =>
@@ -784,28 +789,6 @@ class LaserPageController {
           .toString();
 
   String _fastApiUrl({required bool cloud}) {
-    var host = robotParametroValue(
-      'network.fastapi.host',
-      fallback: settings.ipServer,
-    ).toString().trim();
-    var scheme = 'http';
-    if (host.startsWith('http://') || host.startsWith('https://')) {
-      final parsed = Uri.tryParse(host);
-      if (parsed != null && parsed.host.isNotEmpty) {
-        scheme = parsed.scheme;
-        host = parsed.hasPort ? '${parsed.host}:${parsed.port}' : parsed.host;
-      }
-    }
-    host = host.replaceAll(RegExp(r'/+$'), '');
-
-    final configuredPort = robotParametroValue('network.fastapi.port');
-    final port = configuredPort is num
-        ? configuredPort.toInt()
-        : int.tryParse(configuredPort?.toString() ?? '');
-    if (port != null && port > 0 && !RegExp(r':\d+$').hasMatch(host)) {
-      host = '$host:$port';
-    }
-
     final endpointKey = cloud
         ? 'network.fastapi.cloud_endpoint'
         : 'network.fastapi.polygon_endpoint';
@@ -814,7 +797,7 @@ class LaserPageController {
         .toString()
         .trim();
     if (!endpoint.startsWith('/')) endpoint = '/$endpoint';
-    return '$scheme://$host$endpoint';
+    return '$serverBaseUrl$endpoint';
   }
 
   void openLastInterpolaResponseDebug() {
@@ -1323,6 +1306,118 @@ class LaserPageController {
               'valore': parametro.valore,
             })
         .toList();
+  }
+
+  /// Entrambe le schermate applicano e memorizzano la risposta confermata
+  /// dall'API; in caso di errore le modifiche restano da salvare.
+  Future<void> saveRobotSettings({
+    Map<String, String> fields = const {},
+    List<Map<String, dynamic>>? parametri,
+  }) async {
+    final parameters = {
+      for (final row in parametri ?? dirtyRobotParametriPayload())
+        row['parametro'] as String: row['valore'],
+    };
+    const sharedFields = {
+      'ip_server': 'network.fastapi.host',
+      'pin_gas': 'io.gas_output_pin',
+      'pin_laser': 'io.laser_output_pin',
+      'pin_massa': 'io.mass_output_pin',
+    };
+    for (final entry in sharedFields.entries) {
+      final value = fields[entry.key];
+      if (value != null && _robotParametro(entry.value) != null) {
+        parameters[entry.value] = entry.key == 'ip_server'
+            ? value.trim()
+            : int.tryParse(value.trim()) ?? value;
+      }
+    }
+    final enteredHost = parameters['network.fastapi.host']?.toString();
+    final enteredPort = LaserServerAddress.portOf(enteredHost ?? '');
+    if (enteredPort != null &&
+        _robotParametro('network.fastapi.port') != null &&
+        (fields.containsKey('ip_server') ||
+            !parameters.containsKey('network.fastapi.port'))) {
+      parameters['network.fastapi.port'] = enteredPort;
+    }
+    final payload = <String, String>{
+      'seriale_robot': settings.serialeRobot,
+      'ip_robot': settings.ipRobot,
+      'ip_server': effectiveServerAddress,
+      'pin_gas': effectivePinGas,
+      'pin_laser': effectivePinLaser,
+      'pin_massa': effectivePinMassa,
+      'allontanamento_x': settings.scostamentoX.toString(),
+      'allontanamento_y': settings.scostamentoY.toString(),
+      'allontanamento_z': settings.scostamentoZ.toString(),
+      ...fields,
+      'f': 'setImpostazioniRobotLaser',
+      'seriale_start': settings.serialeRobot,
+    };
+    for (final entry in sharedFields.entries) {
+      if (entry.key != 'ip_server' && parameters.containsKey(entry.value)) {
+        payload[entry.key] = parameters[entry.value]?.toString() ?? '';
+      }
+    }
+    payload['ip_server'] = LaserServerAddress.resolve(
+      legacy: payload['ip_server']!,
+      host: enteredHost ?? robotParametroValue('network.fastapi.host')?.toString(),
+      port: parameters['network.fastapi.port'] ?? robotParametroValue('network.fastapi.port'),
+      hostChanged: parameters.containsKey('network.fastapi.host'),
+      portChanged: parameters.containsKey('network.fastapi.port'),
+    );
+    if (parameters.isNotEmpty) {
+      payload['parametri'] = jsonEncode([
+        for (final entry in parameters.entries)
+          {'parametro': entry.key, 'valore': entry.value},
+      ]);
+    }
+    final response = await Api.request(payload, verbose: false);
+    final saved = robotLaserSettingsFromJson(response.body);
+    final savedFields = saved.toJson();
+    void notConfirmed(String key) {
+      throw ResponseError(
+        code: 498,
+        message: 'Il server non ha confermato il salvataggio di $key. '
+            'Le modifiche restano da salvare.',
+      );
+    }
+
+    for (final key in [
+      'seriale_robot', 'ip_robot', 'ip_server', 'pin_gas', 'pin_laser',
+      'pin_massa', 'allontanamento_x', 'allontanamento_y', 'allontanamento_z',
+    ]) {
+      final expected = payload[key]!.trim();
+      final actual = savedFields[key]?.toString().trim();
+      if (actual != expected &&
+          !(num.tryParse(expected) != null &&
+              num.tryParse(expected) == num.tryParse(actual ?? ''))) {
+        notConfirmed(key);
+      }
+    }
+    final savedParameters = {
+      for (final parameter in saved.parametri)
+        parameter.parametro.trim(): parameter.valore,
+    };
+    for (final entry in sharedFields.entries) {
+      if (entry.key != 'ip_server' && savedParameters.containsKey(entry.value) &&
+          savedParameters[entry.value]?.toString().trim() !=
+              payload[entry.key]?.trim()) {
+        notConfirmed(entry.value);
+      }
+    }
+    if (saved.serverAddress != payload['ip_server']) {
+      notConfirmed('ip_server');
+    }
+    for (final entry in parameters.entries) {
+      if (!savedParameters.containsKey(entry.key) ||
+          !const DeepCollectionEquality()
+              .equals(savedParameters[entry.key], entry.value)) {
+        notConfirmed(entry.key);
+      }
+    }
+    await setRobotSettings(newSettings: saved);
+    await box.box.flush();
   }
 
   void clearDirtyRobotParametri([Iterable<String>? keys]) {
@@ -4522,7 +4617,7 @@ class LaserPageController {
         false;
     if (confirmed) {
       await http.post(
-        Uri.parse("http://${settings.ipServer}:8000/shutdown"),
+        Uri.parse('$serverBaseUrl/shutdown'),
       );
     }
   }

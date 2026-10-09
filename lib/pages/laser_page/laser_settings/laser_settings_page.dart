@@ -127,10 +127,8 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
   void _syncSharedParameterFieldsFromController() {
     _syncingSharedParameterFields = true;
     try {
-      ipServerEditingController.text = widget.laserPageController
-          .robotParametroValue('network.fastapi.host',
-              fallback: widget.laserPageController.settings.ipServer)
-          .toString();
+      ipServerEditingController.text =
+          widget.laserPageController.effectiveServerAddress;
       pinGasEditingController.text = widget.laserPageController
           .robotParametroValue('io.gas_output_pin',
               fallback: widget.laserPageController.settings.pinGas)
@@ -336,7 +334,7 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
           Listener(
               onPointerDown: (_) => Vibrator.shortVibration(),
               child: TextButton.icon(
-                onPressed: _openAllParametersPage,
+                onPressed: isLoading ? null : _openAllParametersPage,
                 icon: const Icon(
                   Icons.view_list,
                   color: Colors.white,
@@ -376,7 +374,7 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
           Listener(
               onPointerDown: (_) => Vibrator.shortVibration(),
               child: TextButton(
-                  onPressed: updateSettingsFromServer,
+                  onPressed: isLoading ? null : updateSettingsFromServer,
                   child: Icon(
                     Icons.update,
                     color: Colors.white,
@@ -384,7 +382,7 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
           Listener(
               onPointerDown: (_) => Vibrator.shortVibration(),
               child: TextButton(
-                  onPressed: saveSettings,
+                  onPressed: isLoading ? null : saveSettings,
                   child: Text(
                     "SALVA",
                     style: TextStyle(
@@ -740,7 +738,7 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
     _syncingSharedParameterFields = true;
     try {
       ipServerEditingController.text =
-          parameterValue('network.fastapi.host', settings.ipServer).toString();
+          settings.serverAddress;
       pinGasEditingController.text =
           parameterValue('io.gas_output_pin', settings.pinGas).toString();
       pinLaserEditingController.text =
@@ -813,7 +811,8 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
     }
   }
 
-  void saveSettings() async {
+  Future<void> saveSettings() async {
+    if (isLoading) return;
     //
     //
     //
@@ -858,9 +857,6 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
       //
       //
       final payload = <String, String>{
-        "f": "setImpostazioniRobotLaser",
-        "seriale_start": widget.laserPageController.settings.serialeRobot,
-        "seriale_robot": widget.laserPageController.settings.serialeRobot,
         "ip_robot": ipRobotEditingController.text,
         "ip_server": ipServerEditingController.text,
         "pin_gas": pinGasEditingController.text,
@@ -874,30 +870,19 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
             _normalizeNumericInput(scostamentoZEditingController.text),
         "limiti": jsonEncode(limitiPayload),
       };
-      final sharedParameters =
-          widget.laserPageController.dirtyRobotParametriPayload();
-      if (sharedParameters.isNotEmpty) {
-        payload['parametri'] = jsonEncode(sharedParameters);
-      }
-
-      final response = await Api.request(payload, verbose: false);
-
-      //
-      //
-      final currentSettings = robotLaserSettingsFromJson(response.body);
-      //
       await widget.laserPageController
-          .setRobotSettings(newSettings: currentSettings);
-      writeDataToDisk(writingSettings: widget.laserPageController.settings);
+          .saveRobotSettings(fields: payload);
+      if (!mounted) return;
       updateFields(settings: widget.laserPageController.settings);
+      Messenger.showSnackBar(context,
+          textToShow: 'Impostazioni salvate correttamente');
       //
       //
     } catch (e) {
       widget.laserPageController.printLog(e.toString());
-      if (e is ResponseError) {
-        if (e.message.trim() != "") {
-          Messenger.showMessageGenericError(context, e.message, 2);
-        }
+      if (mounted) {
+        Messenger.showMessageGenericError(context,
+            e is ResponseError ? e.message : 'Salvataggio non completato: $e', 2);
       }
     } finally {
       mySetState(() {

@@ -215,7 +215,8 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
 
   bool _isJsonType(String tipo) {
     final normalized = tipo.trim().toLowerCase();
-    return const {'json', 'array', 'object', 'lista'}.contains(normalized);
+    return const {'json', 'array', 'object', 'lista'}.contains(normalized) ||
+        RegExp(r'^array\s*<\s*[^<>]+\s*>$').hasMatch(normalized);
   }
 
   List<_ParametroDropdownOption> _dropdownOptions(dynamic allowed) {
@@ -431,6 +432,7 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
   }
 
   Future<void> _saveParameters() async {
+    if (isLoading) return;
     final modifiedParameters = _parametri.where(_isParametroModified).toList();
 
     if (modifiedParameters.isEmpty) {
@@ -468,30 +470,7 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
         };
       }).toList();
 
-      final response = await Api.request({
-        "f": "setImpostazioniRobotLaser",
-        "seriale_start": widget.laserPageController.settings.serialeRobot,
-        "seriale_robot": widget.laserPageController.settings.serialeRobot,
-        "ip_robot": widget.laserPageController.settings.ipRobot,
-        "ip_server": widget.laserPageController.robotParametroValue(
-            'network.fastapi.host',
-            fallback: widget.laserPageController.settings.ipServer),
-        "pin_gas": widget.laserPageController.effectivePinGas,
-        "pin_laser": widget.laserPageController.effectivePinLaser,
-        "pin_massa": widget.laserPageController.effectivePinMassa,
-        "allontanamento_x":
-            widget.laserPageController.settings.scostamentoX.toString(),
-        "allontanamento_y":
-            widget.laserPageController.settings.scostamentoY.toString(),
-        "allontanamento_z":
-            widget.laserPageController.settings.scostamentoZ.toString(),
-        "parametri": jsonEncode(payload),
-      }, verbose: false);
-
-      final currentSettings = robotLaserSettingsFromJson(response.body);
-      await widget.laserPageController.setRobotSettings(
-        newSettings: currentSettings,
-      );
+      await widget.laserPageController.saveRobotSettings(parametri: payload);
       if (!mounted) return;
       setState(() {
         _syncFromSettings(widget.laserPageController.settings);
@@ -499,8 +478,9 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
       Messenger.showSnackBar(context,
           textToShow: 'Parametri salvati correttamente');
     } catch (e) {
-      if (e is ResponseError && e.message.trim().isNotEmpty && mounted) {
-        Messenger.showMessageGenericError(context, e.message, 2);
+      if (mounted) {
+        Messenger.showMessageGenericError(context,
+            e is ResponseError ? e.message : 'Salvataggio non completato: $e', 2);
       }
     } finally {
       if (mounted) {

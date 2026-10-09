@@ -504,6 +504,7 @@ function getRobotLaserDetail($conn, $post)
         {
             responseError(400, 1, "Lettura parametri robot non avvenuta");
         }
+        $data['ip_server'] = robotLaserServerAddress($data['ip_server'], $data['parametri']);
 
         $flags = defined('JSON_INVALID_UTF8_SUBSTITUTE') ? JSON_INVALID_UTF8_SUBSTITUTE : 0;
         echo json_encode($data, $flags);
@@ -547,6 +548,26 @@ function setImpostazioniRobotLaser($conn, $post)
 
     list($parametriPayload, $parametriPayloadError) = normalizeRobotLaserParametriPayload($conn, $seriale_robot_current, $post);
     if ($parametriPayload === false) { responseError(400, 1, $parametriPayloadError); }
+
+    // I parametri espliciti prevalgono sui campi base eventualmente obsoleti.
+    foreach ($parametriPayload ?? [] as $parametro)
+    {
+        foreach (robotLaserSharedParameterFields() as $field => $key)
+        {
+            if ($field !== 'ip_server' && strtolower($parametro['parametro']) === $key) { $post[$field] = $parametro['valore']; }
+        }
+    }
+    $currentParameters = getRobotLaserParametriBySeriale($conn, $seriale_robot_current);
+    if ($currentParameters === false) { responseError(400, 1, "Lettura parametri robot non avvenuta"); }
+    $changedKeys = array_map('strtolower', array_column($parametriPayload ?? [], 'parametro'));
+    $ip_server = robotLaserServerAddress(
+        $post['ip_server'], array_merge($currentParameters, $parametriPayload ?? []),
+        in_array('network.fastapi.host', $changedKeys, true),
+        in_array('network.fastapi.port', $changedKeys, true)
+    );
+    $pin_gas = $post['pin_gas'];
+    $pin_laser = $post['pin_laser'];
+    $pin_massa = $post['pin_massa'];
 
     MSSQL::begin($conn, "RSW");
 
@@ -613,6 +634,42 @@ function setImpostazioniRobotLaser($conn, $post)
 // ROBOT LASER - PARAMETRI (helpers)
 // ---------------------------------------------------------------
 
+function robotLaserServerAddressParts($value)
+{
+    $text = trim((string)$value);
+    if ($text === '') { return false; }
+    return parse_url(strpos($text, '://') === false ? 'http://' . $text : $text);
+}
+
+function robotLaserServerAddress($legacy, $parameters, $hostChanged = false, $portChanged = false)
+{
+    $values = [];
+    foreach ($parameters as $parameter) { $values[strtolower(trim($parameter['parametro']))] = $parameter['valore']; }
+    $host = trim((string)($values['network.fastapi.host'] ?? ''));
+    if ($host === '') { $host = trim((string)$legacy); }
+    $current = robotLaserServerAddressParts($host);
+    if ($current === false || empty($current['host'])) { return $host; }
+    $previous = robotLaserServerAddressParts($legacy);
+    $port = filter_var($values['network.fastapi.port'] ?? null, FILTER_VALIDATE_INT,
+        ['options' => ['min_range' => 1, 'max_range' => 65535]]);
+    $port = $port === false ? null : $port;
+    $savedPort = $previous !== false && ($previous['host'] ?? '') === $current['host']
+        ? ($previous['port'] ?? null) : null;
+    $resolvedPort = ($portChanged ? $port : null)
+        ?? ($hostChanged ? ($current['port'] ?? null) : null)
+        ?? $savedPort ?? ($current['port'] ?? null) ?? $port;
+    $scheme = strpos($host, '://') !== false ? $current['scheme'] . '://' : '';
+    return $scheme . $current['host'] . ($resolvedPort === null ? '' : ':' . $resolvedPort);
+}
+
+function isRobotLaserParametroJsonType($tipo)
+{
+    $tipo = strtolower(trim((string)$tipo));
+    // Il catalogo usa anche array<int>, array<double> e array<posj>.
+    return in_array($tipo, ['json', 'array', 'object', 'lista'], true)
+        || preg_match('/^array\s*<\s*[^<>]+\s*>$/', $tipo) === 1;
+}
+
 function robotLaserParametroValueFromStorage($value, $tipo)
 {
     if ($value === null) { return null; }
@@ -630,7 +687,7 @@ function robotLaserParametroValueFromStorage($value, $tipo)
     {
         return in_array(strtolower(trim((string)$value)), ['1', 'true', 'yes', 'si', 'on'], true);
     }
-    if (in_array($tipo, ['json', 'array', 'object', 'lista'], true))
+    if (isRobotLaserParametroJsonType($tipo))
     {
         $decoded = json_decode((string)$value, true);
         return json_last_error() === JSON_ERROR_NONE ? $decoded : $value;
@@ -725,7 +782,7 @@ function normalizeRobotLaserParametroValueForStorage($value, $definition)
         if (in_array($normalized, ['0', 'false', 'no', 'off'], true)) { return ['0', null]; }
         return [false, "Il parametro " . $nome . " deve essere booleano"];
     }
-    if (in_array($tipo, ['json', 'array', 'object', 'lista'], true))
+    if (isRobotLaserParametroJsonType($tipo))
     {
         if (is_string($value))
         {
@@ -790,11 +847,25 @@ function isRobotLaserParametroValueAllowed($value, $allowed)
     return true;
 }
 
+function robotLaserSharedParameterFields()
+{
+    return [
+        'ip_server' => 'network.fastapi.host',
+        'pin_gas' => 'io.gas_output_pin',
+        'pin_laser' => 'io.laser_output_pin',
+        'pin_massa' => 'io.mass_output_pin',
+    ];
+}
+
 function normalizeRobotLaserParametriPayload($conn, $serialeRobot, $post)
 {
-    if (!array_key_exists('parametri', $post)) { return [null, null]; }
+    $sharedFields = robotLaserSharedParameterFields();
+    if (!array_key_exists('parametri', $post) && count(array_intersect_key($post, $sharedFields)) === 0)
+    {
+        return [null, null];
+    }
 
-    $payload = $post['parametri'];
+    $payload = array_key_exists('parametri', $post) ? $post['parametri'] : [];
     if (is_string($payload))
     {
         $payload = json_decode($payload, true);
@@ -828,6 +899,33 @@ function normalizeRobotLaserParametriPayload($conn, $serialeRobot, $post)
         foreach ($payload as $parametro => $valore)
         {
             $rows[] = ['parametro' => $parametro, 'valore' => $valore];
+        }
+    }
+
+    // Anche un client con il solo form base deve aggiornare il catalogo.
+    $explicitKeys = [];
+    foreach ($rows as $row) { $explicitKeys[strtolower(trim((string)$row['parametro']))] = true; }
+    foreach ($sharedFields as $field => $key)
+    {
+        if (array_key_exists($field, $post) && isset($definitions[$key]) && !isset($explicitKeys[$key]))
+        {
+            $rows[] = ['parametro' => $definitions[$key]['parametro'], 'valore' => $post[$field]];
+        }
+    }
+
+    // Un host scritto come IP:porta aggiorna anche la porta separata, salvo
+    // una porta fornita esplicitamente nella stessa richiesta.
+    if (isset($definitions['network.fastapi.port']) && !isset($explicitKeys['network.fastapi.port']))
+    {
+        foreach ($rows as $row)
+        {
+            if (strtolower(trim((string)$row['parametro'])) !== 'network.fastapi.host' || !is_string($row['valore'])) { continue; }
+            $address = robotLaserServerAddressParts($row['valore']);
+            if ($address !== false && isset($address['port']))
+            {
+                $rows[] = ['parametro' => $definitions['network.fastapi.port']['parametro'], 'valore' => $address['port']];
+                break;
+            }
         }
     }
 
