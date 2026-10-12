@@ -12,14 +12,37 @@ void main() {
       '192.168.10.13:8824',
     );
   });
-  test('a different host uses its configured port', () {
+  test('a different host does not inherit a default port', () {
     expect(
       LaserServerAddress.resolve(
         legacy: '192.168.10.13:8824',
         host: '192.168.10.14',
         port: 8000,
       ),
-      '192.168.10.14:8000',
+      '192.168.10.14',
+    );
+  });
+  test('a saved bare IP remains bare despite old host and port parameters', () {
+    for (final host in ['192.168.10.13', '192.168.10.13:8824']) {
+      expect(
+        LaserServerAddress.resolve(
+          legacy: '192.168.10.13',
+          host: host,
+          port: 8000,
+        ),
+        '192.168.10.13',
+      );
+    }
+  });
+  test('removing an explicit port does not restore the previous port', () {
+    expect(
+      LaserServerAddress.resolve(
+        legacy: '192.168.10.13:8824',
+        host: '192.168.10.13',
+        port: 8000,
+        hostChanged: true,
+      ),
+      '192.168.10.13',
     );
   });
   test('explicit standard ports and schemes are preserved', () {

@@ -66,6 +66,8 @@ function sqlsrv_fetch_array($result, $mode)
     return $row;
 }
 
+class TestRollback extends RuntimeException {}
+
 class MSSQL
 {
     public static $robot = [
@@ -81,13 +83,47 @@ class MSSQL
         'io.mass_output_pin' => ['int', '4'],
         'path.weld_width_mm' => ['double', '3.5'],
     ];
+    public static $modes = [
+        ['id_robot' => 1, 'id' => 2, 'nome' => 'Semplice', 'codice' => 'controrotaiasemplice'],
+        ['id_robot' => 2, 'id' => 3, 'nome' => 'Piano', 'codice' => 'piano'],
+    ];
     public static $values = [];
     public static $commits = 0;
-    public static function begin($conn, $db) {}
+    public static $robotWrites = 0;
+    public static $parameterWrites = 0;
+    public static $failParameter = null;
+    private static $snapshot;
+    public static function begin($conn, $db) { self::$snapshot = [self::$robot, self::$values]; }
     public static function commit($conn, $db) { self::$commits++; }
-    public static function rollback($conn, $db) { throw new RuntimeException('Unexpected rollback'); }
+    public static function rollback($conn, $db)
+    {
+        [self::$robot, self::$values] = self::$snapshot;
+        throw new TestRollback('Transaction rolled back');
+    }
     public static function queryP($conn, $sql, $params)
     {
+        if (strpos($sql, 'INNER JOIN rsw.dbo.ROBOT_LASER_LAVORAZIONI m') !== false)
+        {
+            if (strpos($sql, 'FROM rsw.dbo.ROBOT_LASER_LAVORAZIONI_ABILITATE a') === false ||
+                strpos($sql, 'a.id_robot = r.id AND a.modalita = m.id') === false ||
+                strpos($sql, 'WHERE r.abilitato = 1') === false) {
+                throw new RuntimeException('Modes must be scoped to enabled robots and their associations');
+            }
+            $rows = self::$modes;
+            if ($params !== []) {
+                expectParameterValue($params, ['TEST']);
+                $rows = array_values(array_filter($rows, function ($row) { return $row['id_robot'] === 1; }));
+            }
+            return new ArrayIterator($rows);
+        }
+        if (strpos($sql, 'SELECT id, seriale_robot, color FROM rsw.dbo.ROBOT_LASER') !== false)
+        {
+            return new ArrayIterator([
+                ['id' => 1, 'seriale_robot' => 'TEST', 'color' => ''],
+                ['id' => 2, 'seriale_robot' => 'OTHER', 'color' => ''],
+                ['id' => 3, 'seriale_robot' => 'NO-MODES', 'color' => ''],
+            ]);
+        }
         if (strpos($sql, 'FROM USER_TOKENS') !== false || strpos($sql, 'SELECT id FROM ROBOT_LASER') !== false)
         {
             return new ArrayIterator([['id' => 1]]);
@@ -108,11 +144,14 @@ class MSSQL
         }
         if (strpos($sql, 'UPDATE rsw.dbo.ROBOT_LASER_PARAMETRI') !== false)
         {
+            if ($params[2] === self::$failParameter) { return false; }
+            self::$parameterWrites++;
             self::$values[$params[2]] = $params[0];
             return true;
         }
         if (strpos($sql, 'UPDATE ROBOT_LASER SET') !== false)
         {
+            self::$robotWrites++;
             foreach (array_keys(self::$robot) as $index => $key) { self::$robot[$key] = $params[$index]; }
             return true;
         }
@@ -130,57 +169,110 @@ function endpointResult($function, $post)
 }
 function parameterValues($response) { return array_column($response['parametri'], 'valore', 'parametro'); }
 
-// A base form restored from an older cache may not have any catalog parameters.
-$post = array_merge(MSSQL::$robot, ['seriale_start' => 'TEST', 'ip_server' => '192.168.1.42:9001']);
-$saved = endpointResult('setImpostazioniRobotLaser', $post);
-expectParameterValue($saved['ip_server'], '192.168.1.42:9001');
-expectParameterValue(parameterValues($saved)['network.fastapi.host'], '192.168.1.42:9001');
-$reloaded = endpointResult('getRobotLaserDetail', ['seriale_robot' => 'TEST']);
-expectParameterValue(parameterValues($reloaded)['network.fastapi.host'], '192.168.1.42:9001');
+// The two tables deliberately disagree about host, port and all pins.
+MSSQL::$values = [
+    'network.fastapi.host' => '10.99.0.10:9000', 'network.fastapi.port' => '9001',
+    'io.gas_output_pin' => '71', 'io.laser_output_pin' => '73', 'io.mass_output_pin' => '74',
+];
+foreach (['192.168.10.13', '192.168.10.13:8824', ''] as $address)
+{
+    MSSQL::$robot['ip_server'] = $address;
+    foreach (['getRobotLaserDetail', 'getImpostazioniRobotLaser'] as $endpoint)
+    {
+        $read = endpointResult($endpoint, ['seriale_robot' => 'TEST']);
+        foreach (['ip_robot', 'ip_server', 'pin_gas', 'pin_laser', 'pin_massa'] as $key)
+        {
+            expectParameterValue($read[$key], MSSQL::$robot[$key]);
+        }
+    }
+    $beforeParameters = MSSQL::$values;
+    $writes = MSSQL::$parameterWrites;
+    $post = array_merge(MSSQL::$robot, [
+        'seriale_start' => 'TEST', 'ip_robot' => '192.168.10.12',
+        'pin_gas' => '2', 'pin_laser' => '5', 'pin_massa' => '6',
+        // The copy must use the saved ROBOT_LASER row, not catalog input.
+        'parametri' => json_encode(['network.fastapi.host' => 'should-not-be-saved']),
+    ]);
+    $saved = endpointResult('setImpostazioniRobotLaser', $post);
+    foreach (['ip_robot', 'ip_server', 'pin_gas', 'pin_laser', 'pin_massa'] as $key)
+    {
+        expectParameterValue($saved[$key], $post[$key]);
+        expectParameterValue(MSSQL::$robot[$key], $post[$key]);
+    }
+    $expectedParameters = array_merge($beforeParameters, [
+        'network.fastapi.host' => $address,
+        'io.gas_output_pin' => '2', 'io.laser_output_pin' => '5', 'io.mass_output_pin' => '6',
+    ]);
+    expectParameterValue(MSSQL::$values, $expectedParameters);
+    expectParameterValue(MSSQL::$parameterWrites, $writes + 4);
+    expectParameterValue(parameterValues($saved)['network.fastapi.host'], $address);
+    expectParameterValue(parameterValues($saved)['network.fastapi.port'], 9001);
+    expectParameterValue(parameterValues($saved)['io.gas_output_pin'], 2);
+    expectParameterValue(parameterValues($saved)['io.laser_output_pin'], 5);
+    expectParameterValue(parameterValues($saved)['io.mass_output_pin'], 6);
+}
 
-// "All parameters" must update both representations even with an old flat IP.
-$post = array_merge(MSSQL::$robot, ['seriale_start' => 'TEST', 'parametri' => json_encode([
-    ['parametro' => 'network.fastapi.host', 'valore' => '192.168.1.43'],
-    ['parametro' => 'network.fastapi.port', 'valore' => 9002],
-    ['parametro' => 'path.weld_width_mm', 'valore' => 4.5],
-    ['parametro' => 'io.gas_output_pin', 'valore' => 8],
-])]);
-$saved = endpointResult('setImpostazioniRobotLaser', $post);
-expectParameterValue($saved['ip_server'], '192.168.1.43:9002');
-expectParameterValue($saved['pin_gas'], '8');
-$reloaded = endpointResult('getRobotLaserDetail', ['seriale_robot' => 'TEST']);
-expectParameterValue(parameterValues($reloaded)['network.fastapi.host'], '192.168.1.43');
-expectParameterValue(parameterValues($reloaded)['network.fastapi.port'], 9002);
-expectParameterValue(parameterValues($reloaded)['path.weld_width_mm'], 4.5);
-expectParameterValue(parameterValues($reloaded)['io.gas_output_pin'], 8);
-expectParameterValue(MSSQL::$commits, 2);
-echo "Robot settings: base form, parameter form, database commit and reload OK\n";
-
-// Regression: a bare catalog host must not erase the port stored on the robot.
-MSSQL::$robot['ip_server'] = '192.168.10.13:8824';
-MSSQL::$values['network.fastapi.host'] = '192.168.10.13';
-MSSQL::$values['network.fastapi.port'] = '8000';
-$reloaded = endpointResult('getRobotLaserDetail', ['seriale_robot' => 'TEST']);
-expectParameterValue($reloaded['ip_server'], '192.168.10.13:8824');
-$post = array_merge(MSSQL::$robot, ['seriale_start' => 'TEST', 'parametri' => json_encode([
-    ['parametro' => 'network.fastapi.host', 'valore' => '192.168.10.13'],
-])]);
-$saved = endpointResult('setImpostazioniRobotLaser', $post);
-expectParameterValue($saved['ip_server'], '192.168.10.13:8824');
-expectParameterValue(MSSQL::$robot['ip_server'], '192.168.10.13:8824');
-
-// Changing the separate port must take effect even if ip_server has an old port.
-$post['parametri'] = json_encode([
-    ['parametro' => 'network.fastapi.port', 'valore' => 9003],
+// The parameter endpoint writes only the catalog, never ROBOT_LASER.
+$beforeRobot = MSSQL::$robot;
+$writes = MSSQL::$robotWrites;
+$saved = endpointResult('setParametriRobotLaser', [
+    'seriale_robot' => 'TEST',
+    'parametri' => json_encode([
+        ['parametro' => 'network.fastapi.host', 'valore' => '10.98.0.10:9900'],
+        ['parametro' => 'io.gas_output_pin', 'valore' => 81],
+        ['parametro' => 'io.laser_output_pin', 'valore' => 83],
+        ['parametro' => 'io.mass_output_pin', 'valore' => 84],
+        ['parametro' => 'path.weld_width_mm', 'valore' => 4.5],
+    ]),
 ]);
-$saved = endpointResult('setImpostazioniRobotLaser', $post);
-expectParameterValue($saved['ip_server'], '192.168.10.13:9003');
+expectParameterValue(MSSQL::$robot, $beforeRobot);
+expectParameterValue(MSSQL::$robotWrites, $writes);
+expectParameterValue(parameterValues($saved)['network.fastapi.host'], '10.98.0.10:9900');
+expectParameterValue(parameterValues($saved)['network.fastapi.port'], 9001);
+expectParameterValue(parameterValues($saved)['io.gas_output_pin'], 81);
+expectParameterValue(parameterValues($saved)['io.laser_output_pin'], 83);
+expectParameterValue(parameterValues($saved)['io.mass_output_pin'], 84);
+expectParameterValue(parameterValues($saved)['path.weld_width_mm'], 4.5);
 $reloaded = endpointResult('getRobotLaserDetail', ['seriale_robot' => 'TEST']);
-expectParameterValue($reloaded['ip_server'], '192.168.10.13:9003');
+foreach (['ip_robot', 'ip_server', 'pin_gas', 'pin_laser', 'pin_massa'] as $key)
+{
+    expectParameterValue($reloaded[$key], $beforeRobot[$key]);
+}
+expectParameterValue(MSSQL::$commits, 4);
+// Saving base settings again replaces catalog overrides only for copied fields.
+$saved = endpointResult('setImpostazioniRobotLaser', array_merge(MSSQL::$robot, ['seriale_start' => 'TEST']));
+expectParameterValue(parameterValues($saved)['network.fastapi.host'], $beforeRobot['ip_server']);
+expectParameterValue(parameterValues($saved)['io.gas_output_pin'], 2);
+expectParameterValue(parameterValues($saved)['io.laser_output_pin'], 5);
+expectParameterValue(parameterValues($saved)['io.mass_output_pin'], 6);
+expectParameterValue(parameterValues($saved)['network.fastapi.port'], 9001);
+expectParameterValue(parameterValues($saved)['path.weld_width_mm'], 4.5);
+expectParameterValue(MSSQL::$robot, $beforeRobot);
+expectParameterValue(MSSQL::$commits, 5);
+// A failed catalog copy must roll back the base update and preceding copies.
+$beforeParameters = MSSQL::$values;
+MSSQL::$failParameter = 'io.laser_output_pin';
+try {
+    setImpostazioniRobotLaser(null, array_merge(MSSQL::$robot, [
+        'seriale_start' => 'TEST', 'ip_server' => '192.168.10.77', 'pin_gas' => '7',
+    ]));
+    throw new RuntimeException('Expected rollback on catalog failure');
+} catch (TestRollback $error) {
+    expectParameterValue(MSSQL::$robot, $beforeRobot);
+    expectParameterValue(MSSQL::$values, $beforeParameters);
+    expectParameterValue(MSSQL::$commits, 5);
+}
+echo "Robot settings: one-way ROBOT_LASER -> catalog copy, exact addresses and reload OK\n";
 
-// The base field also keeps the separate port consistent.
-$post = array_merge(MSSQL::$robot, ['seriale_start' => 'TEST', 'ip_server' => '192.168.10.13:8824']);
-$saved = endpointResult('setImpostazioniRobotLaser', $post);
-expectParameterValue($saved['ip_server'], '192.168.10.13:8824');
-expectParameterValue(parameterValues($saved)['network.fastapi.port'], 8824);
-echo "Server address: port 8824 preserved on read/save, separate port changes and reload OK\n";
+// List and every detail/save response expose the same per-robot permissions.
+$list = endpointResult('getRobotLaserList', []);
+expectParameterValue(array_column($list[0]['modalita_abilitate'], 'codice'), ['controrotaiasemplice']);
+expectParameterValue(array_column($list[1]['modalita_abilitate'], 'codice'), ['piano']);
+expectParameterValue($list[2]['modalita_abilitate'], []);
+expectParameterValue($saved['modalita_abilitate'], $list[0]['modalita_abilitate']);
+expectParameterValue($reloaded['modalita_abilitate'], $list[0]['modalita_abilitate']);
+MSSQL::$modes = [];
+foreach (['getRobotLaserDetail', 'getImpostazioniRobotLaser'] as $endpoint) {
+    expectParameterValue(endpointResult($endpoint, ['seriale_robot' => 'TEST'])['modalita_abilitate'], []);
+}
+echo "Robot modes: per-robot lists, details, saves and empty permissions OK\n";

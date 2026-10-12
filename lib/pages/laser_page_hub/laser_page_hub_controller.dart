@@ -7,6 +7,7 @@ import 'package:grw_laser/model/response/response_error.dart';
 import 'package:grw_laser/pages/laser_page/laser_page.dart';
 import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
 import 'package:grw_laser/pages/laser_page/laser_settings/components/select_laser_robot_settings_dialog.dart';
+import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_modalita.dart';
 import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_settings.dart';
 import 'package:grw_laser/services/api.dart';
 import 'package:grw_laser/services/hive_disk_encoder.dart';
@@ -36,10 +37,6 @@ class LaserPageHubController {
 
   PageController pageController = PageController(initialPage: 0);
   bool scrollViewEnabledScrolling = false;
-
-  void onInit() {
-    restoreSettingsListFromDisk();
-  }
 
   void toggleScrollViewEnabledScrolling() {
     scrollViewEnabledScrolling = !scrollViewEnabledScrolling;
@@ -115,6 +112,7 @@ class LaserPageHubController {
 
       final tipoControrotaia = await askTipoControrotaia(
         serialeRobot: selectedRobotSerial,
+        modalitaAbilitate: selectedRobotDetail.modalitaAbilitate,
       );
       if (tipoControrotaia == null || context == null || !context!.mounted) return;
 
@@ -124,6 +122,7 @@ class LaserPageHubController {
         await laserPages[existingPageIndex].controller
             .setRobotSettings(
               newSettings: selectedRobotDetail,
+              connectionFieldsFromServer: true,
               selectedWorkMode: tipoControrotaia,
             );
         storeSettingsListToDisk();
@@ -178,10 +177,16 @@ class LaserPageHubController {
   //
   Future<void> _modeDialogQueue = Future<void>.value();
 
-  Future<String?> askTipoControrotaia({String? serialeRobot}) {
+  Future<String?> askTipoControrotaia({
+    String? serialeRobot,
+    required List<LaserRobotModalita> modalitaAbilitate,
+  }) {
     // Le pagine ripristinate possono richiedere la modalità contemporaneamente.
     final request = _modeDialogQueue.then(
-      (_) => _showTipoControrotaiaDialog(serialeRobot: serialeRobot),
+      (_) => _showTipoControrotaiaDialog(
+        serialeRobot: serialeRobot,
+        modalitaAbilitate: modalitaAbilitate,
+      ),
     );
     _modeDialogQueue = request.then<void>(
       (_) {},
@@ -190,7 +195,10 @@ class LaserPageHubController {
     return request;
   }
 
-  Future<String?> _showTipoControrotaiaDialog({String? serialeRobot}) async {
+  Future<String?> _showTipoControrotaiaDialog({
+    String? serialeRobot,
+    required List<LaserRobotModalita> modalitaAbilitate,
+  }) async {
     if (context == null || !context!.mounted) return null;
     return showDialog<String>(
       context: context!,
@@ -201,58 +209,43 @@ class LaserPageHubController {
             borderRadius: BorderRadius.circular(16),
           ),
           title: const Text(
-            'Tipo controrotaia',
+            'Tipo di lavorazione',
             textAlign: TextAlign.center,
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
+          scrollable: true,
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 serialeRobot == null
-                    ? 'Seleziona il tipo di controrotaia da lavorare'
-                    : 'Robot $serialeRobot\nSeleziona il tipo di controrotaia da lavorare',
+                    ? 'Seleziona il tipo di lavorazione'
+                    : 'Robot $serialeRobot\nSeleziona il tipo di lavorazione',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.sagaBlue,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: () => Navigator.of(ctx).pop('controrotaiadoppia'),
-                  child: const Text('Doppia', textAlign: TextAlign.center),
+              if (modalitaAbilitate.isEmpty)
+                const Text(
+                  'Nessuna lavorazione abilitata per questo robot. Impossibile proseguire.',
+                  textAlign: TextAlign.center,
                 ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.sagaBlue,
-                    foregroundColor: Colors.white,
+              for (final modalita in modalitaAbilitate) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.sagaBlue,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () => Navigator.of(ctx).pop(modalita.codice),
+                    child: Text(
+                      modalita.nome.isEmpty ? modalita.codice : modalita.nome,
+                      textAlign: TextAlign.center,
+                    ),
                   ),
-                  onPressed: () =>
-                      Navigator.of(ctx).pop('controrotaiasemplice'),
-                  child: const Text('Semplice', textAlign: TextAlign.center),
                 ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.sagaBlue,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: () => Navigator.of(ctx).pop('piano'),
-                  child: const Text('Piano di rotolamento',
-                      textAlign: TextAlign.center),
-                ),
-              ),
-              const SizedBox(height: 8),
+                const SizedBox(height: 8),
+              ],
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -271,30 +264,6 @@ class LaserPageHubController {
     );
   }
 
-  String _normalizeTipoControrotaia(String? tipo) {
-    final raw = (tipo ?? '').trim().toLowerCase();
-    switch (raw) {
-      case '0':
-      case 'lunga':
-      case 'controrotaiasemplice':
-      case 'controrotaia semplice':
-      case 'semplice':
-        return 'controrotaiasemplice';
-      case '1':
-      case 'cuore':
-      case 'controrotaiadoppia':
-      case 'controrotaia doppia':
-      case 'doppia':
-        return 'controrotaiadoppia';
-      case '2':
-      case 'piano':
-      case 'piano di rotolamento':
-        return 'piano';
-      default:
-        return 'controrotaiasemplice';
-    }
-  }
-
   //
   //
   //
@@ -302,6 +271,7 @@ class LaserPageHubController {
     mySetState?.call(() {
       isLoadingRobots = true;
     });
+    elencoRobotSettings = [];
     try {
       final response = await Api.request({
         "f": "getRobotLaserList",
@@ -444,46 +414,4 @@ class LaserPageHubController {
     );
   }
 
-  void restoreSettingsListFromDisk() {
-    final settingsString =
-        box.stringFor(key: Constants.HIVE_LASER_SETTINGS_LIST_KEY);
-    final tipoMapString =
-        box.stringFor(key: Constants.HIVE_LASER_TIPO_CONTROROTAIA_MAP_KEY);
-    Map<String, String> tipoMap = {};
-    if (tipoMapString != null && tipoMapString.trim().isNotEmpty) {
-      try {
-        final decoded = jsonDecode(tipoMapString);
-        if (decoded is Map<String, dynamic>) {
-          tipoMap = decoded
-              .map((key, value) => MapEntry(key.toString(), value.toString()));
-        }
-      } catch (_) {}
-    }
-
-    if (settingsString != null && settingsString != "") {
-      try {
-        final currentSettingsList =
-            robotLaserSettingsListFromJson(settingsString);
-        final pages = currentSettingsList.map((e) {
-          final serial = e.serialeRobot.trim();
-          final tipo = e.tipoControrotaia.trim().isNotEmpty
-              ? _normalizeTipoControrotaia(e.tipoControrotaia)
-              : _normalizeTipoControrotaia(tipoMap[serial]);
-
-          return LaserPage(
-            controller: LaserPageController(
-              settings: e,
-              hubController: this,
-              tipoControrotaia: tipo,
-            ),
-          );
-        }).toList();
-        mySetState?.call(() {
-          laserPages.addAll(pages);
-        });
-      } catch (e) {
-        print("Failed to parse Settings String From Disk");
-      }
-    }
-  }
 }

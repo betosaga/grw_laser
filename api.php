@@ -454,22 +454,50 @@ function logRobotLaserCommand($conn, $post, $files)
     echo json_encode(["message" => "Richiesta comando registrata"]);
 }
 
+// EXISTS evita duplicati anche se la stessa abilitazione compare più volte.
+function getRobotLaserLavorazioniAbilitate($conn, $serialeRobot = null)
+{
+    $sql = "SELECT r.id AS id_robot, m.id, m.nome, m.codice
+            FROM rsw.dbo.ROBOT_LASER r
+            INNER JOIN rsw.dbo.ROBOT_LASER_LAVORAZIONI m ON EXISTS (
+                SELECT 1 FROM rsw.dbo.ROBOT_LASER_LAVORAZIONI_ABILITATE a
+                WHERE a.id_robot = r.id AND a.modalita = m.id
+            )
+            WHERE r.abilitato = 1";
+    $params = [];
+    if ($serialeRobot !== null)
+    {
+        $sql .= " AND r.seriale_robot = ?";
+        $params[] = $serialeRobot;
+    }
+    $sql .= " ORDER BY r.id, m.id";
+    $result = MSSQL::queryP($conn, $sql, $params);
+    if ($result === false) { return false; }
+    $modalita = [];
+    while ($row = sqlsrv_fetch_array($result, SQLSRV_FETCH_ASSOC))
+    {
+        $idRobot = $row['id_robot'];
+        unset($row['id_robot']);
+        if ($serialeRobot !== null) { $modalita[] = $row; }
+        else { $modalita[$idRobot][] = $row; }
+    }
+    return $modalita;
+}
+
 function getRobotLaserList($conn, $post)
 {
-	$robots = [];
-	$result = MSSQL::queryP($conn, "SELECT seriale_robot, color FROM rsw.dbo.ROBOT_LASER WHERE abilitato = 1 ORDER BY seriale_robot ASC", []);
-	if ($result === false)
-	{
-		responseError(500, 1, "Lettura lista robot non avvenuta");
-	}
-
-	while ($data = sqlsrv_fetch_array($result, SQLSRV_FETCH_ASSOC))
-	{
-		$robots[] = $data;
-	}
-
-	$flags = defined('JSON_INVALID_UTF8_SUBSTITUTE') ? JSON_INVALID_UTF8_SUBSTITUTE : 0;
-	echo json_encode($robots, $flags);
+    $robots = [];
+    $result = MSSQL::queryP($conn, "SELECT id, seriale_robot, color FROM rsw.dbo.ROBOT_LASER WHERE abilitato = 1 ORDER BY seriale_robot ASC", []);
+    if ($result === false) { responseError(500, 1, "Lettura lista robot non avvenuta"); }
+    $modalita = getRobotLaserLavorazioniAbilitate($conn);
+    if ($modalita === false) { responseError(500, 1, "Lettura lavorazioni robot non avvenuta"); }
+    while ($data = sqlsrv_fetch_array($result, SQLSRV_FETCH_ASSOC))
+    {
+        $data['modalita_abilitate'] = $modalita[$data['id']] ?? [];
+        $robots[] = $data;
+    }
+    $flags = defined('JSON_INVALID_UTF8_SUBSTITUTE') ? JSON_INVALID_UTF8_SUBSTITUTE : 0;
+    echo json_encode($robots, $flags);
 }
 
 function getImpostazioniRobotLaser($conn, $post)
@@ -498,13 +526,18 @@ function getRobotLaserDetail($conn, $post)
             responseError(400, 1, "Lettura limiti non avvenuta");
         }
 
+        $data['modalita_abilitate'] = getRobotLaserLavorazioniAbilitate($conn, $SERIALE_ROBOT);
+        if ($data['modalita_abilitate'] === false)
+        {
+            responseError(500, 1, "Lettura lavorazioni robot non avvenuta");
+        }
+
         $data['limiti'] = $limiti;
         $data['parametri'] = getRobotLaserParametriBySeriale($conn, $SERIALE_ROBOT);
         if ($data['parametri'] === false)
         {
             responseError(400, 1, "Lettura parametri robot non avvenuta");
         }
-        $data['ip_server'] = robotLaserServerAddress($data['ip_server'], $data['parametri']);
 
         $flags = defined('JSON_INVALID_UTF8_SUBSTITUTE') ? JSON_INVALID_UTF8_SUBSTITUTE : 0;
         echo json_encode($data, $flags);
@@ -545,29 +578,6 @@ function setImpostazioniRobotLaser($conn, $post)
 
     list($limitiPayload, $limitiPayloadError) = normalizeRobotLaserLimitiPayload($post);
     if ($limitiPayload === false) { responseError(400, 1, $limitiPayloadError); }
-
-    list($parametriPayload, $parametriPayloadError) = normalizeRobotLaserParametriPayload($conn, $seriale_robot_current, $post);
-    if ($parametriPayload === false) { responseError(400, 1, $parametriPayloadError); }
-
-    // I parametri espliciti prevalgono sui campi base eventualmente obsoleti.
-    foreach ($parametriPayload ?? [] as $parametro)
-    {
-        foreach (robotLaserSharedParameterFields() as $field => $key)
-        {
-            if ($field !== 'ip_server' && strtolower($parametro['parametro']) === $key) { $post[$field] = $parametro['valore']; }
-        }
-    }
-    $currentParameters = getRobotLaserParametriBySeriale($conn, $seriale_robot_current);
-    if ($currentParameters === false) { responseError(400, 1, "Lettura parametri robot non avvenuta"); }
-    $changedKeys = array_map('strtolower', array_column($parametriPayload ?? [], 'parametro'));
-    $ip_server = robotLaserServerAddress(
-        $post['ip_server'], array_merge($currentParameters, $parametriPayload ?? []),
-        in_array('network.fastapi.host', $changedKeys, true),
-        in_array('network.fastapi.port', $changedKeys, true)
-    );
-    $pin_gas = $post['pin_gas'];
-    $pin_laser = $post['pin_laser'];
-    $pin_massa = $post['pin_massa'];
 
     MSSQL::begin($conn, "RSW");
 
@@ -610,16 +620,11 @@ function setImpostazioniRobotLaser($conn, $post)
         if ($limitiFinal === false) { MSSQL::rollback($conn, "RSW"); responseError(400, 1, "Lettura limiti non avvenuta"); }
     }
 
-    if ($parametriPayload !== null)
-    {
-        list($parametriFinal, $parametriSaveError) = syncRobotLaserParametri($conn, $seriale_robot_new, $parametriPayload);
-        if ($parametriFinal === false) { MSSQL::rollback($conn, "RSW"); responseError(400, 1, $parametriSaveError); }
-    }
-    else
-    {
-        $parametriFinal = getRobotLaserParametriBySeriale($conn, $seriale_robot_new);
-        if ($parametriFinal === false) { MSSQL::rollback($conn, "RSW"); responseError(400, 1, "Lettura parametri robot non avvenuta"); }
-    }
+    list($parametriFinal, $parametriError) = copyRobotLaserFieldsToParametri($conn, $seriale_robot_new, $data);
+    if ($parametriFinal === false) { MSSQL::rollback($conn, "RSW"); responseError(400, 1, $parametriError); }
+
+    $data['modalita_abilitate'] = getRobotLaserLavorazioniAbilitate($conn, $seriale_robot_new);
+    if ($data['modalita_abilitate'] === false) { MSSQL::rollback($conn, "RSW"); responseError(500, 1, "Lettura lavorazioni robot non avvenuta"); }
 
     MSSQL::commit($conn, "RSW");
 
@@ -634,32 +639,24 @@ function setImpostazioniRobotLaser($conn, $post)
 // ROBOT LASER - PARAMETRI (helpers)
 // ---------------------------------------------------------------
 
-function robotLaserServerAddressParts($value)
+function setParametriRobotLaser($conn, $post)
 {
-    $text = trim((string)$value);
-    if ($text === '') { return false; }
-    return parse_url(strpos($text, '://') === false ? 'http://' . $text : $text);
-}
+    $headers = apache_request_headers();
+    checkClient($headers);
+    checkAuthorization($conn, $headers);
+    checkParametri(['seriale_robot', 'parametri'], $post);
+    $serialeRobot = strtoupper(trim($post['seriale_robot']));
+    list($parametri, $error) = normalizeRobotLaserParametriPayload($conn, $serialeRobot, $post);
+    if ($parametri === false) { responseError(400, 1, $error); }
 
-function robotLaserServerAddress($legacy, $parameters, $hostChanged = false, $portChanged = false)
-{
-    $values = [];
-    foreach ($parameters as $parameter) { $values[strtolower(trim($parameter['parametro']))] = $parameter['valore']; }
-    $host = trim((string)($values['network.fastapi.host'] ?? ''));
-    if ($host === '') { $host = trim((string)$legacy); }
-    $current = robotLaserServerAddressParts($host);
-    if ($current === false || empty($current['host'])) { return $host; }
-    $previous = robotLaserServerAddressParts($legacy);
-    $port = filter_var($values['network.fastapi.port'] ?? null, FILTER_VALIDATE_INT,
-        ['options' => ['min_range' => 1, 'max_range' => 65535]]);
-    $port = $port === false ? null : $port;
-    $savedPort = $previous !== false && ($previous['host'] ?? '') === $current['host']
-        ? ($previous['port'] ?? null) : null;
-    $resolvedPort = ($portChanged ? $port : null)
-        ?? ($hostChanged ? ($current['port'] ?? null) : null)
-        ?? $savedPort ?? ($current['port'] ?? null) ?? $port;
-    $scheme = strpos($host, '://') !== false ? $current['scheme'] . '://' : '';
-    return $scheme . $current['host'] . ($resolvedPort === null ? '' : ':' . $resolvedPort);
+    MSSQL::begin($conn, 'RSW');
+    $robot = MSSQL::queryP($conn, 'SELECT id FROM ROBOT_LASER WITH (UPDLOCK, HOLDLOCK) WHERE seriale_robot = ?', [$serialeRobot]);
+    if ($robot === false) { MSSQL::rollback($conn, 'RSW'); responseError(400, 1, 'Verifica robot laser non avvenuta'); }
+    if (sqlsrv_num_rows($robot) <= 0) { MSSQL::rollback($conn, 'RSW'); responseError(404, 1, 'Robot Laser non trovato con il seriale indicato'); }
+    list($saved, $error) = syncRobotLaserParametri($conn, $serialeRobot, $parametri);
+    if ($saved === false) { MSSQL::rollback($conn, 'RSW'); responseError(400, 1, $error); }
+    MSSQL::commit($conn, 'RSW');
+    getRobotLaserDetail($conn, ['seriale_robot' => $serialeRobot]);
 }
 
 function isRobotLaserParametroJsonType($tipo)
@@ -847,25 +844,11 @@ function isRobotLaserParametroValueAllowed($value, $allowed)
     return true;
 }
 
-function robotLaserSharedParameterFields()
-{
-    return [
-        'ip_server' => 'network.fastapi.host',
-        'pin_gas' => 'io.gas_output_pin',
-        'pin_laser' => 'io.laser_output_pin',
-        'pin_massa' => 'io.mass_output_pin',
-    ];
-}
-
 function normalizeRobotLaserParametriPayload($conn, $serialeRobot, $post)
 {
-    $sharedFields = robotLaserSharedParameterFields();
-    if (!array_key_exists('parametri', $post) && count(array_intersect_key($post, $sharedFields)) === 0)
-    {
-        return [null, null];
-    }
+    if (!array_key_exists('parametri', $post)) { return [null, null]; }
 
-    $payload = array_key_exists('parametri', $post) ? $post['parametri'] : [];
+    $payload = $post['parametri'];
     if (is_string($payload))
     {
         $payload = json_decode($payload, true);
@@ -902,33 +885,6 @@ function normalizeRobotLaserParametriPayload($conn, $serialeRobot, $post)
         }
     }
 
-    // Anche un client con il solo form base deve aggiornare il catalogo.
-    $explicitKeys = [];
-    foreach ($rows as $row) { $explicitKeys[strtolower(trim((string)$row['parametro']))] = true; }
-    foreach ($sharedFields as $field => $key)
-    {
-        if (array_key_exists($field, $post) && isset($definitions[$key]) && !isset($explicitKeys[$key]))
-        {
-            $rows[] = ['parametro' => $definitions[$key]['parametro'], 'valore' => $post[$field]];
-        }
-    }
-
-    // Un host scritto come IP:porta aggiorna anche la porta separata, salvo
-    // una porta fornita esplicitamente nella stessa richiesta.
-    if (isset($definitions['network.fastapi.port']) && !isset($explicitKeys['network.fastapi.port']))
-    {
-        foreach ($rows as $row)
-        {
-            if (strtolower(trim((string)$row['parametro'])) !== 'network.fastapi.host' || !is_string($row['valore'])) { continue; }
-            $address = robotLaserServerAddressParts($row['valore']);
-            if ($address !== false && isset($address['port']))
-            {
-                $rows[] = ['parametro' => $definitions['network.fastapi.port']['parametro'], 'valore' => $address['port']];
-                break;
-            }
-        }
-    }
-
     $normalizedRows = [];
     $seen = [];
     foreach ($rows as $row)
@@ -962,6 +918,32 @@ function normalizeRobotLaserParametriPayload($conn, $serialeRobot, $post)
     }
 
     return [$normalizedRows, null];
+}
+
+// Solo ROBOT_LASER -> catalogo: usare la riga riletta dopo l'UPDATE,
+// mai i parametri inviati dal client. IP SERVER resta completo e invariato;
+// network.fastapi.port e i parametri senza un campo corrispondente restano intatti.
+function copyRobotLaserFieldsToParametri($conn, $serialeRobot, $robot)
+{
+    $fields = [
+        'network.fastapi.host' => 'ip_server',
+        'io.gas_output_pin' => 'pin_gas',
+        'io.laser_output_pin' => 'pin_laser',
+        'io.mass_output_pin' => 'pin_massa',
+    ];
+    $definitions = getRobotLaserParametriBySeriale($conn, $serialeRobot);
+    if ($definitions === false) { return [false, "Lettura parametri robot non avvenuta"]; }
+
+    $rows = [];
+    foreach ($definitions as $definition)
+    {
+        $key = strtolower($definition['parametro']);
+        if (!isset($fields[$key])) { continue; }
+        list($value, $error) = normalizeRobotLaserParametroValueForStorage($robot[$fields[$key]], $definition);
+        if ($value === false) { return [false, $error]; }
+        $rows[] = ['parametro' => $definition['parametro'], 'valore' => $value];
+    }
+    return syncRobotLaserParametri($conn, $serialeRobot, $rows);
 }
 
 function syncRobotLaserParametri($conn, $serialeRobot, $parametri)

@@ -1308,45 +1308,29 @@ class LaserPageController {
         .toList();
   }
 
-  /// Entrambe le schermate applicano e memorizzano la risposta confermata
-  /// dall'API; in caso di errore le modifiche restano da salvare.
+  /// L'API copia i campi base nel catalogo solo salvando ROBOT_LASER.
+  /// Si applica e memorizza solo la risposta confermata dall'API.
   Future<void> saveRobotSettings({
     Map<String, String> fields = const {},
     List<Map<String, dynamic>>? parametri,
   }) async {
+    if (parametri != null && fields.isNotEmpty) {
+      throw ArgumentError('Salvare separatamente impostazioni robot e parametri');
+    }
     final parameters = {
-      for (final row in parametri ?? dirtyRobotParametriPayload())
+      for (final row in parametri ?? const <Map<String, dynamic>>[])
         row['parametro'] as String: row['valore'],
     };
-    const sharedFields = {
-      'ip_server': 'network.fastapi.host',
-      'pin_gas': 'io.gas_output_pin',
-      'pin_laser': 'io.laser_output_pin',
-      'pin_massa': 'io.mass_output_pin',
-    };
-    for (final entry in sharedFields.entries) {
-      final value = fields[entry.key];
-      if (value != null && _robotParametro(entry.value) != null) {
-        parameters[entry.value] = entry.key == 'ip_server'
-            ? value.trim()
-            : int.tryParse(value.trim()) ?? value;
-      }
-    }
-    final enteredHost = parameters['network.fastapi.host']?.toString();
-    final enteredPort = LaserServerAddress.portOf(enteredHost ?? '');
-    if (enteredPort != null &&
-        _robotParametro('network.fastapi.port') != null &&
-        (fields.containsKey('ip_server') ||
-            !parameters.containsKey('network.fastapi.port'))) {
-      parameters['network.fastapi.port'] = enteredPort;
-    }
-    final payload = <String, String>{
+    final payload = parametri != null ? <String, String>{
+      'f': 'setParametriRobotLaser',
+      'seriale_robot': settings.serialeRobot,
+    } : <String, String>{
       'seriale_robot': settings.serialeRobot,
       'ip_robot': settings.ipRobot,
-      'ip_server': effectiveServerAddress,
-      'pin_gas': effectivePinGas,
-      'pin_laser': effectivePinLaser,
-      'pin_massa': effectivePinMassa,
+      'ip_server': settings.ipServer,
+      'pin_gas': settings.pinGas,
+      'pin_laser': settings.pinLaser,
+      'pin_massa': settings.pinMassa,
       'allontanamento_x': settings.scostamentoX.toString(),
       'allontanamento_y': settings.scostamentoY.toString(),
       'allontanamento_z': settings.scostamentoZ.toString(),
@@ -1354,19 +1338,7 @@ class LaserPageController {
       'f': 'setImpostazioniRobotLaser',
       'seriale_start': settings.serialeRobot,
     };
-    for (final entry in sharedFields.entries) {
-      if (entry.key != 'ip_server' && parameters.containsKey(entry.value)) {
-        payload[entry.key] = parameters[entry.value]?.toString() ?? '';
-      }
-    }
-    payload['ip_server'] = LaserServerAddress.resolve(
-      legacy: payload['ip_server']!,
-      host: enteredHost ?? robotParametroValue('network.fastapi.host')?.toString(),
-      port: parameters['network.fastapi.port'] ?? robotParametroValue('network.fastapi.port'),
-      hostChanged: parameters.containsKey('network.fastapi.host'),
-      portChanged: parameters.containsKey('network.fastapi.port'),
-    );
-    if (parameters.isNotEmpty) {
+    if (parametri != null) {
       payload['parametri'] = jsonEncode([
         for (final entry in parameters.entries)
           {'parametro': entry.key, 'valore': entry.value},
@@ -1383,7 +1355,7 @@ class LaserPageController {
       );
     }
 
-    for (final key in [
+    for (final key in parametri != null ? ['seriale_robot'] : [
       'seriale_robot', 'ip_robot', 'ip_server', 'pin_gas', 'pin_laser',
       'pin_massa', 'allontanamento_x', 'allontanamento_y', 'allontanamento_z',
     ]) {
@@ -1399,16 +1371,6 @@ class LaserPageController {
       for (final parameter in saved.parametri)
         parameter.parametro.trim(): parameter.valore,
     };
-    for (final entry in sharedFields.entries) {
-      if (entry.key != 'ip_server' && savedParameters.containsKey(entry.value) &&
-          savedParameters[entry.value]?.toString().trim() !=
-              payload[entry.key]?.trim()) {
-        notConfirmed(entry.value);
-      }
-    }
-    if (saved.serverAddress != payload['ip_server']) {
-      notConfirmed('ip_server');
-    }
     for (final entry in parameters.entries) {
       if (!savedParameters.containsKey(entry.key) ||
           !const DeepCollectionEquality()
@@ -1416,7 +1378,36 @@ class LaserPageController {
         notConfirmed(entry.key);
       }
     }
-    await setRobotSettings(newSettings: saved);
+    const copiedFields = {
+      'network.fastapi.host': 'ip_server',
+      'io.gas_output_pin': 'pin_gas',
+      'io.laser_output_pin': 'pin_laser',
+      'io.mass_output_pin': 'pin_massa',
+    };
+    final copiedKeys = <String>{};
+    if (parametri == null) {
+      for (final entry in copiedFields.entries) {
+        if (!savedParameters.containsKey(entry.key)) continue;
+        final expected = savedFields[entry.value].toString();
+        final actual = savedParameters[entry.key]?.toString();
+        if (actual != expected &&
+            !(entry.value.startsWith('pin_') &&
+                num.tryParse(expected) != null &&
+                num.tryParse(expected) == num.tryParse(actual ?? ''))) {
+          notConfirmed(entry.key);
+        }
+        copiedKeys.add(entry.key);
+      }
+    }
+    // Una bozza del catalogo non deve ripristinare i valori appena copiati.
+    final pending = dirtyRobotParametriPayload()
+        .where((row) => !parameters.containsKey(row['parametro']) &&
+            !copiedKeys.contains(row['parametro']))
+        .toList();
+    await setRobotSettings(newSettings: saved, connectionFieldsFromServer: true);
+    for (final row in pending) {
+      updateRobotParametroValue(row['parametro'] as String, row['valore']);
+    }
     await box.box.flush();
   }
 
@@ -2843,11 +2834,20 @@ class LaserPageController {
   }
 
   Future<bool> _selectWorkModeBeforeConnection() async {
-    final selected = await hubController.askTipoControrotaia(
+    final detail = await hubController.fetchRobotDetail(
       serialeRobot: settings.serialeRobot,
     );
+    if (detail == null || isDisposing) return false;
+    final selected = await hubController.askTipoControrotaia(
+      serialeRobot: settings.serialeRobot,
+      modalitaAbilitate: detail.modalitaAbilitate,
+    );
     if (selected == null || isDisposing) return false;
-    await setRobotSettings(newSettings: settings, selectedWorkMode: selected);
+    await setRobotSettings(
+      newSettings: detail,
+      selectedWorkMode: selected,
+      connectionFieldsFromServer: true,
+    );
     return !isDisposing;
   }
 
@@ -3697,7 +3697,8 @@ class LaserPageController {
   }
 
   Future<void> setRobotSettings(
-      {required LaserRobotSettings newSettings, String? selectedWorkMode}) async {
+      {required LaserRobotSettings newSettings, String? selectedWorkMode,
+      bool connectionFieldsFromServer = false}) async {
     final send = _sessionSender();
     final oldMode = controrotaiaModeValue;
     final settingsRefreshed = !identical(newSettings, settings);
@@ -3727,25 +3728,25 @@ class LaserPageController {
         _connectionParamChanged(newSettings.pinLaser, settings.pinLaser) ||
         _connectionParamChanged(newSettings.pinMassa, settings.pinMassa);
 
-    // Merge: se la risposta API non include un campo di connessione (stringa vuota),
-    // mantieni il valore corrente per evitare di sovrascrivere dati validi con vuoti.
+    // Le risposte complete dell'API prevalgono anche con campi vuoti.
+    // Per gli aggiornamenti parziali si conserva la compatibilità precedente.
     final mergedSettings = LaserRobotSettings(
       serialeRobot: newSettings.serialeRobot.trim().isNotEmpty
           ? newSettings.serialeRobot
           : settings.serialeRobot,
-      ipRobot: newSettings.ipRobot.trim().isNotEmpty
+      ipRobot: connectionFieldsFromServer || newSettings.ipRobot.trim().isNotEmpty
           ? newSettings.ipRobot.trim()
           : settings.ipRobot.trim(),
-      ipServer: newSettings.ipServer.trim().isNotEmpty
+      ipServer: connectionFieldsFromServer || newSettings.ipServer.trim().isNotEmpty
           ? newSettings.ipServer
           : settings.ipServer,
-      pinGas: newSettings.pinGas.trim().isNotEmpty
+      pinGas: connectionFieldsFromServer || newSettings.pinGas.trim().isNotEmpty
           ? newSettings.pinGas
           : settings.pinGas,
-      pinLaser: newSettings.pinLaser.trim().isNotEmpty
+      pinLaser: connectionFieldsFromServer || newSettings.pinLaser.trim().isNotEmpty
           ? newSettings.pinLaser
           : settings.pinLaser,
-      pinMassa: newSettings.pinMassa.trim().isNotEmpty
+      pinMassa: connectionFieldsFromServer || newSettings.pinMassa.trim().isNotEmpty
           ? newSettings.pinMassa
           : settings.pinMassa,
       scostamentoX: newSettings.scostamentoX,
@@ -3765,6 +3766,7 @@ class LaserPageController {
       stepRight: newSettings.stepRight,
       stepY: newSettings.stepY,
       tipoControrotaia: nextTipo,
+      modalitaAbilitate: newSettings.modalitaAbilitate,
       limiti:
           newSettings.limiti.isNotEmpty ? newSettings.limiti : settings.limiti,
       parametri: newSettings.parametri.isNotEmpty

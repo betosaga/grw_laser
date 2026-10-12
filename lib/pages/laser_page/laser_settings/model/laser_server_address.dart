@@ -1,6 +1,6 @@
 /// Combina le due rappresentazioni storiche: ip_server e host/porta separati.
-/// In lettura la porta già salvata in ip_server prevale sui default del catalogo
-/// quando l'host è lo stesso. Le modifiche esplicite prevalgono in scrittura.
+/// In lettura ip_server conserva anche l'assenza della porta per lo stesso host.
+/// Una porta del catalogo si applica solo quando viene modificata esplicitamente.
 class LaserServerAddress {
   static Uri? parse(String value) {
     final text = value.trim();
@@ -37,14 +37,17 @@ class LaserServerAddress {
         configuredPort != null && configuredPort > 0 && configuredPort <= 65535
         ? configuredPort
         : null;
-    final savedPort = previous?.host == current.host ? portOf(legacy) : null;
     final explicitPort = portOf(raw);
-    final resolvedPort =
-        (portChanged ? validPort : null) ??
-        (hostChanged ? explicitPort : null) ??
-        savedPort ??
-        explicitPort ??
-        validPort;
+    final int? resolvedPort;
+    if (portChanged) {
+      resolvedPort = validPort;
+    } else if (hostChanged) {
+      resolvedPort = explicitPort;
+    } else if (previous?.host == current.host) {
+      resolvedPort = portOf(legacy);
+    } else {
+      resolvedPort = explicitPort;
+    }
     final scheme = raw.contains('://') ? '${current.scheme}://' : '';
     final hostname = current.host.contains(':')
         ? '[${current.host}]'

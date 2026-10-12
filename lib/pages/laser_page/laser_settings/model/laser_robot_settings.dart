@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_limite.dart';
+import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_modalita.dart';
 import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_parametro.dart';
-import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_server_address.dart';
 
 LaserRobotSettings robotLaserSettingsFromJson(String str) =>
     LaserRobotSettings.fromJson(json.decode(str));
@@ -43,16 +43,7 @@ class LaserRobotSettings {
   final String tipoControrotaia;
   final List<LaserRobotLimite> limiti;
   final List<LaserRobotParametro> parametri;
-
-  String get serverAddress {
-    final values = {for (final parameter in parametri)
-      parameter.parametro.trim(): parameter.valore};
-    return LaserServerAddress.resolve(
-      legacy: ipServer,
-      host: values['network.fastapi.host']?.toString(),
-      port: values['network.fastapi.port'],
-    );
-  }
+  final List<LaserRobotModalita> modalitaAbilitate;
 
   LaserRobotSettings(
       {required this.serialeRobot,
@@ -77,7 +68,8 @@ class LaserRobotSettings {
       this.stepY = 0,
       this.tipoControrotaia = '0',
       this.limiti = const [],
-      this.parametri = const []});
+      this.parametri = const [],
+      this.modalitaAbilitate = const []});
 
   static String stringOrEmpty(dynamic value) {
     if (value == null) return '';
@@ -110,6 +102,14 @@ class LaserRobotSettings {
       _fromJson(json);
 
   static LaserRobotSettings _fromJson(Map<String, dynamic> json) {
+    final rawModalita = json['modalita_abilitate'];
+    final parsedModalita = <String, LaserRobotModalita>{};
+    if (rawModalita is List) {
+      for (final entry in rawModalita.whereType<Map>()) {
+        final mode = LaserRobotModalita.fromJson(Map<String, dynamic>.from(entry));
+        if (mode.codice.isNotEmpty) parsedModalita[mode.codice] = mode;
+      }
+    }
     final rawLimiti = json['limiti'];
     List<LaserRobotLimite> parsedLimiti = [];
     if (rawLimiti is List) {
@@ -172,10 +172,12 @@ class LaserRobotSettings {
       tipoControrotaia: first.tipoControrotaia,
       limiti: parsedLimiti,
       parametri: parsedParametri,
+      modalitaAbilitate: parsedModalita.values.toList(),
     );
   }
 
   Map<String, dynamic> toJson() => {
+        "modalita_abilitate": modalitaAbilitate.map((m) => m.toJson()).toList(),
         "seriale_robot": serialeRobot,
         "ip_robot": ipRobot,
         "ip_server": ipServer,

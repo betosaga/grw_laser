@@ -165,6 +165,7 @@ class _LaserRobotParametriPageState extends State<LaserRobotParametriPage> {
       final currentSettings = robotLaserSettingsFromJson(response.body);
       await widget.laserPageController.setRobotSettings(
         newSettings: currentSettings,
+        connectionFieldsFromServer: true,
       );
       if (!mounted) return;
       setState(() {

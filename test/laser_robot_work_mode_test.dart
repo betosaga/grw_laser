@@ -15,6 +15,11 @@ import 'support/fake_robot_socket.dart';
 LaserRobotSettings _settings() => LaserRobotSettings.fromJson({
   'seriale_robot': 'ROBOT-TEST',
   'ip_robot': '127.0.0.1',
+  'modalita_abilitate': [
+    {'codice': 'controrotaiasemplice', 'nome': 'Semplice'},
+    {'codice': 'controrotaiadoppia', 'nome': 'Doppia'},
+    {'codice': 'piano', 'nome': 'Piano di rotolamento'},
+  ],
   'tipo_controrotaia': 'controrotaiadoppia',
   'parametri': [
     {
@@ -27,6 +32,7 @@ LaserRobotSettings _settings() => LaserRobotSettings.fromJson({
 });
 
 class _Hub extends LaserPageHubController {
+  LaserRobotSettings detail = _settings();
   @override
   Future<void> fetchRobotList() async {
     elencoRobotSettings = [_settings()];
@@ -35,7 +41,7 @@ class _Hub extends LaserPageHubController {
   @override
   Future<LaserRobotSettings?> fetchRobotDetail({
     required String serialeRobot,
-  }) async => _settings();
+  }) async => detail;
 
   @override
   void storeSettingsListToDisk() {}
@@ -63,6 +69,115 @@ void main() {
 
   tearDownAll(Hive.close);
 
+  test(
+    'enabled modes survive persistence; absent or invalid codes enable nothing',
+    () {
+      final restored = robotLaserSettingsFromJson(
+        robotLaserSettingsToJson(_settings()),
+      );
+      expect(restored.modalitaAbilitate.map((m) => m.codice), [
+        'controrotaiasemplice',
+        'controrotaiadoppia',
+        'piano',
+      ]);
+      for (final value in [
+        null,
+        [],
+        [
+          {'codice': null, 'nome': null},
+        ],
+      ]) {
+        expect(
+          LaserRobotSettings.fromJson({
+            'modalita_abilitate': value,
+          }).modalitaAbilitate,
+          isEmpty,
+        );
+      }
+    },
+  );
+
+  testWidgets(
+    'only enabled modes from fresh detail are offered, with database names',
+    (tester) async {
+      final hub = _Hub();
+      hub.detail = LaserRobotSettings.fromJson({
+        ..._settings().toJson(),
+        'modalita_abilitate': [
+          {'codice': 'piano', 'nome': 'Lavorazione piano'},
+        ],
+      });
+      await _mount(tester, hub);
+      final selection = hub.selectRobotPressed();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ROBOT-TEST'));
+      await tester.pumpAndSettle();
+      expect(find.text('Doppia'), findsNothing);
+      expect(find.text('Semplice'), findsNothing);
+      expect(hub.laserPages, isEmpty);
+      await tester.tap(find.text('Lavorazione piano'));
+      await tester.pumpAndSettle();
+      await selection;
+      final controller = hub.laserPages.single.controller;
+      addTearDown(controller.onDispose);
+      expect(controller.controrotaiaModeValue, 'piano');
+      expect(controller.settings.modalitaAbilitate.single.codice, 'piano');
+    },
+  );
+
+  for (final modes in [null, []]) {
+    testWidgets('no enabled modes blocks selection (modes=$modes)', (
+      tester,
+    ) async {
+      final hub = _Hub();
+      hub.detail = LaserRobotSettings.fromJson({
+        ..._settings().toJson(),
+        'modalita_abilitate': modes,
+      });
+      await _mount(tester, hub);
+      final selection = hub.selectRobotPressed();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ROBOT-TEST'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Nessuna lavorazione abilitata'), findsOneWidget);
+      expect(find.widgetWithText(ElevatedButton, 'Annulla'), findsOneWidget);
+      expect(find.byType(ElevatedButton), findsOneWidget);
+      await tester.tap(find.text('Annulla'));
+      await tester.pumpAndSettle();
+      await selection;
+      expect(hub.laserPages, isEmpty);
+    });
+  }
+
+  testWidgets('reconnection refreshes permissions and blocks revoked modes', (
+    tester,
+  ) async {
+    final hub = _Hub();
+    hub.detail = LaserRobotSettings.fromJson({
+      ..._settings().toJson(),
+      'modalita_abilitate': [],
+    });
+    final sockets = <FakeRobotSocket>[];
+    final controller = LaserPageController(
+      hubController: hub,
+      settings: _settings(),
+      robotSocketConnector: (_, _, _) async {
+        final socket = FakeRobotSocket();
+        sockets.add(socket);
+        return socket;
+      },
+    );
+    addTearDown(controller.onDispose);
+    await _mount(tester, hub);
+    final connection = controller.startConnection();
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Nessuna lavorazione abilitata'), findsOneWidget);
+    await tester.tap(find.text('Annulla'));
+    await tester.pumpAndSettle();
+    await connection;
+    expect(sockets, isEmpty);
+  });
+
   testWidgets('selection always asks and overrides both configured defaults', (
     tester,
   ) async {
@@ -73,7 +188,7 @@ void main() {
     await tester.tap(find.text('ROBOT-TEST'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Tipo controrotaia'), findsOneWidget);
+    expect(find.text('Tipo di lavorazione'), findsOneWidget);
     expect(hub.laserPages, isEmpty);
     await tester.tap(find.text('Semplice'));
     await tester.pumpAndSettle();
@@ -151,7 +266,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.pump(const Duration(seconds: 6));
     expect(sockets, isEmpty);
-    expect(find.text('Tipo controrotaia'), findsOneWidget);
+    expect(find.text('Tipo di lavorazione'), findsOneWidget);
 
     await tester.tap(find.text('Doppia'));
     await tester.pumpAndSettle();
@@ -168,7 +283,7 @@ void main() {
     controller.closeSocket();
     final reconnect = controller.connettiRobot();
     await tester.pumpAndSettle();
-    expect(find.text('Tipo controrotaia'), findsOneWidget);
+    expect(find.text('Tipo di lavorazione'), findsOneWidget);
     await tester.tap(find.text('Annulla'));
     await tester.pumpAndSettle();
     await reconnect;

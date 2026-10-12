@@ -22,7 +22,7 @@ class _LaserPageHubState extends State<LaserPageHub> {
   @override
   void initState() {
     controller.mySetState = mySetState;
-    controller.onInit();
+    // Le pagine robot si aprono solo dopo una selezione esplicita.
     WakelockPlus.enable();
     super.initState();
   }

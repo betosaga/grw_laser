@@ -21,8 +21,8 @@ class LaserRobotModalita {
 
   factory LaserRobotModalita.fromJson(Map<String, dynamic> json) =>
       LaserRobotModalita(
-        codice: json["codice"],
-        nome: json["nome"],
+        codice: (json["codice"] ?? "").toString().trim().toLowerCase(),
+        nome: (json["nome"] ?? "").toString().trim(),
       );
 
   Map<String, dynamic> toJson() => {
