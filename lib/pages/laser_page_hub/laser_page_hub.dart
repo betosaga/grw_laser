@@ -3,6 +3,7 @@ import 'package:grw_laser/common_components/drawer.dart';
 import 'package:grw_laser/common_components/gradient_app_bar_background.dart';
 import 'package:grw_laser/common_components/loading_spinner.dart';
 import 'package:grw_laser/configuration/app_colors.dart';
+import 'package:grw_laser/pages/general_settings/general_settings_page.dart';
 import 'package:grw_laser/pages/laser_page/components/laser_choose_robot_button.dart';
 import 'package:grw_laser/pages/laser_page/components/laser_close_page_button.dart';
 import 'package:grw_laser/pages/laser_page/components/laser_page_title.dart';
@@ -29,6 +30,7 @@ class _LaserPageHubState extends State<LaserPageHub> {
 
   @override
   void dispose() {
+    controller.dispose();
     WakelockPlus.disable();
     super.dispose();
   }
@@ -51,6 +53,17 @@ class _LaserPageHubState extends State<LaserPageHub> {
             controller: controller,
           ),
           actions: [
+            IconButton(
+              tooltip: 'Impostazioni generali',
+              color: Colors.white,
+              disabledColor: Colors.white38,
+              onPressed: controller.isLoadingRobots || controller.isThinking
+                  ? null
+                  : () => Navigator.of(context).push(MaterialPageRoute<void>(
+                        builder: (_) => const GeneralSettingsPage(),
+                      )),
+              icon: const Icon(Icons.settings),
+            ),
             LaserChooseRobotButton(controller: controller),
           ],
         ),

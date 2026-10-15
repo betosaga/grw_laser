@@ -13,12 +13,104 @@ import 'package:grw_laser/services/api.dart';
 import 'package:grw_laser/services/hive_disk_encoder.dart';
 import 'package:grw_laser/services/messenger.dart';
 import 'package:grw_laser/services/pager.dart';
+import 'package:grw_laser/services/robot/robot_discovery.dart';
 import 'package:grw_laser/services/user_session_nest.dart';
 
 //
 //
 //
 class LaserPageHubController {
+  LaserPageHubController({RobotDiscovery Function()? discoveryFactory})
+      : _discoveryFactory = discoveryFactory ?? RobotDiscovery.new;
+
+  final RobotDiscovery Function() _discoveryFactory;
+  RobotDiscovery? _activeDiscovery;
+  bool _selectingRobot = false;
+  bool _disposed = false;
+
+  bool get _canShowSelection => !_disposed && context != null && context!.mounted;
+
+  /// The + button dispatches here; the original FLAT entry point is retained.
+  Future<void> addRobotPressed() async {
+    if (_selectingRobot || !_canShowSelection) return;
+    _selectingRobot = true;
+    try {
+      if (Constants.ROBOT_SEARCH_MODE == 'SCAN') {
+        await selectRobotByScanPressed();
+      } else {
+        await selectRobotPressed();
+      }
+    } finally {
+      _selectingRobot = false;
+    }
+  }
+
+  Future<void> selectRobotByScanPressed() async {
+    if (!_canShowSelection || _activeDiscovery != null) return;
+    final discovery = _discoveryFactory();
+    _activeDiscovery = discovery;
+    List<LaserRobotSettings>? available;
+    final discoveredIps = <String, String>{};
+    try {
+      logRobotScan('Avvio flusso SCAN: scaricamento elenco robot dal server.');
+      await fetchRobotList();
+      logRobotScan('Elenco server: ${elencoRobotSettings.length} robot.');
+      if (!_canShowSelection || discovery.isCancelled) return;
+      _setLoadingRobots(true);
+      final robots = await discovery.scan();
+      if (!_canShowSelection || discovery.isCancelled) return;
+      for (final robot in robots) {
+        discoveredIps.putIfAbsent(robot.serverSerial, () => robot.ip);
+      }
+      available = elencoRobotSettings
+          .where((settings) =>
+              discoveredIps.containsKey(settings.serialeRobot.trim()))
+          .map((settings) => settings
+              .withRobotIp(discoveredIps[settings.serialeRobot.trim()]!))
+          .toList();
+      logRobotScan('Filtro completato: ${robots.length} robot rilevati in rete, '
+          '${available.length}/${elencoRobotSettings.length} robot server disponibili.');
+      for (final robot in robots) {
+        final matched = available.any((settings) =>
+            settings.serialeRobot.trim() == robot.serverSerial);
+        logRobotScan('${matched ? 'INCLUSO' : 'ESCLUSO (non presente sul server)'}: '
+            '${robot.serverSerial} @ ${robot.ip}:20002');
+      }
+    } catch (error) {
+      logRobotScan('ERRORE flusso SCAN: $error');
+      if (_canShowSelection && !discovery.isCancelled) {
+        Messenger.showMessageGenericError(
+          context,
+          error is RobotDiscoveryException
+              ? error.message
+              : 'Impossibile cercare i robot. Verifica la connessione e il permesso di accesso alla rete locale.',
+          4,
+        );
+      }
+    } finally {
+      discovery.cancel();
+      _activeDiscovery = null;
+      _setLoadingRobots(false);
+    }
+    if (available != null && _canShowSelection) {
+      await _showRobotSelection(available, discoveredIps: discoveredIps);
+    }
+  }
+
+  void _setLoadingRobots(bool value) {
+    isLoadingRobots = value;
+    if (!_disposed) mySetState?.call(() {});
+  }
+
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _activeDiscovery?.cancel();
+    context = null;
+    mySetState = null;
+    pageController.dispose();
+  }
+
   BuildContext? context;
   Function(VoidCallback?)? mySetState;
 
@@ -91,24 +183,38 @@ class LaserPageHubController {
   Future<void> selectRobotPressed() async {
     if (context == null) return;
     await fetchRobotList();
-    if (context == null || !context!.mounted) return;
+    if (!_canShowSelection) return;
+    await _showRobotSelection(elencoRobotSettings);
+  }
+
+  Future<void> _showRobotSelection(
+    List<LaserRobotSettings> robots, {
+    Map<String, String> discoveredIps = const {},
+  }) async {
+    if (!_canShowSelection) return;
     final LaserRobotSettings? selectedSettings =
         await showDialog<LaserRobotSettings?>(
       barrierDismissible: false,
       context: context!,
       builder: (BuildContext context) {
-        return SelectLaserRobotSettingsDialog(list: elencoRobotSettings);
+        return SelectLaserRobotSettingsDialog(list: robots);
       },
     );
 
     if (selectedSettings != null) {
       print("SETTINGS SELEZIONATE");
       final selectedRobotSerial = selectedSettings.serialeRobot.trim();
-      final selectedRobotDetail =
+      final serverDetail =
           await fetchRobotDetail(serialeRobot: selectedRobotSerial);
-      if (selectedRobotDetail == null) {
-        return;
+      if (serverDetail == null || !_canShowSelection) return;
+      final discoveredIp = discoveredIps[selectedRobotSerial];
+      if (discoveredIp != null) {
+        logRobotScan('SELEZIONATO $selectedRobotSerial: connessione a '
+            '$discoveredIp:20002 (IP server: ${serverDetail.ipRobot}).');
       }
+      final selectedRobotDetail = discoveredIp == null
+          ? serverDetail
+          : serverDetail.withRobotIp(discoveredIp);
 
       final tipoControrotaia = await askTipoControrotaia(
         serialeRobot: selectedRobotSerial,
@@ -268,9 +374,7 @@ class LaserPageHubController {
   //
   //
   Future<void> fetchRobotList() async {
-    mySetState?.call(() {
-      isLoadingRobots = true;
-    });
+    _setLoadingRobots(true);
     elencoRobotSettings = [];
     try {
       final response = await Api.request({
@@ -285,9 +389,7 @@ class LaserPageHubController {
         }
       }
     }
-    mySetState?.call(() {
-      isLoadingRobots = false;
-    });
+    if (_activeDiscovery == null) _setLoadingRobots(false);
   }
 
   void setRobotSettings(
@@ -309,6 +411,7 @@ class LaserPageHubController {
         false;
 
     if (confirmed) {
+      _activeDiscovery?.cancel();
       mySetState?.call(() {
         isThinking = true;
       });

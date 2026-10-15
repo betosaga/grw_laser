@@ -71,6 +71,34 @@ class LaserRobotSettings {
       this.parametri = const [],
       this.modalitaAbilitate = const []});
 
+  /// Override only the endpoint discovered on the local network.
+  LaserRobotSettings withRobotIp(String ip) => LaserRobotSettings(
+        serialeRobot: serialeRobot,
+        ipRobot: ip,
+        ipServer: ipServer,
+        pinGas: pinGas,
+        pinLaser: pinLaser,
+        pinMassa: pinMassa,
+        scostamentoX: scostamentoX,
+        scostamentoY: scostamentoY,
+        scostamentoZ: scostamentoZ,
+        color: color,
+        limiteZDown: limiteZDown,
+        stepUp: stepUp,
+        stepDown: stepDown,
+        stepUpSx: stepUpSx,
+        stepUpDx: stepUpDx,
+        stepDownSx: stepDownSx,
+        stepDownDx: stepDownDx,
+        stepLeft: stepLeft,
+        stepRight: stepRight,
+        stepY: stepY,
+        tipoControrotaia: tipoControrotaia,
+        limiti: limiti,
+        parametri: parametri,
+        modalitaAbilitate: modalitaAbilitate,
+      );
+
   static String stringOrEmpty(dynamic value) {
     if (value == null) return '';
     return value.toString();

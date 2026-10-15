@@ -9,7 +9,12 @@ class Constants {
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   static bool LOGIN_UNLOCKED = false; // debug interno (runtime togglable)
-  static const bool LASER_DEBUG = true;
+  static const bool LASER_DEBUG = false;
+  // FLAT: elenco server; SCAN: solo robot rilevati nella LAN.
+  // Qualsiasi valore diverso da SCAN mantiene il flusso FLAT.
+  // ignore: non_constant_identifier_names
+  static String ROBOT_SEARCH_MODE = 'FLAT';
+  static const String HIVE_ROBOT_SEARCH_MODE_KEY = 'robot-search-mode';
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

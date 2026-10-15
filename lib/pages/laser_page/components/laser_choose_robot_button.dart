@@ -13,7 +13,7 @@ class LaserChooseRobotButton extends StatelessWidget {
       child: TextButton(
           onPressed: controller.isLoadingRobots
               ? () {}
-              : controller.selectRobotPressed,
+              : controller.addRobotPressed,
           style: TextButton.styleFrom(
             minimumSize: const Size(56, 56),
             padding: const EdgeInsets.symmetric(horizontal: 12),
