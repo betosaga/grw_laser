@@ -357,6 +357,22 @@ class LaserPageController {
   ];
 
   Map<String, List<StratoLaser>> stratiEseguiti = {};
+  int? _newWeldSession;
+  bool _resetWeldingWhenStopped = false;
+
+  String get _weldProgressInvalidatedKey =>
+      '${Constants.HIVE_LASER_STRATI_ESEGUITI_KEY}_invalidated_${settings.serialeRobot}';
+
+  // A reset survives page recreation: RobotStatus can keep reporting the
+  // previous job until this robot actually starts another WELD.
+  bool get _weldProgressInvalidated =>
+      box.boolFor(key: _weldProgressInvalidatedKey) ?? false;
+
+  void _observeNewWeldProgress() {
+    if (!_weldProgressInvalidated || _newWeldSession != robotSession) return;
+    box.setBoolean(value: false, key: _weldProgressInvalidatedKey);
+    _newWeldSession = null;
+  }
 
   Params params = Params();
   // Points points = Points();
@@ -624,6 +640,15 @@ class LaserPageController {
 
   void _applyWeldingStatus(String normalizedStatus) {
     if (!weldingFlowStatuses.contains(normalizedStatus)) return;
+
+    if (_resetWeldingWhenStopped &&
+        (normalizedStatus == weldingStatusEnd ||
+            normalizedStatus == weldingStatusInactive)) {
+      _resetToGeneratedPathState();
+      return;
+    }
+    // Old telemetry must not reactivate controls after a reset or a STOP.
+    if (_weldProgressInvalidated && _newWeldSession != robotSession) return;
 
     mySetState?.call(() {
       weldingStatus = normalizedStatus;
@@ -1216,7 +1241,14 @@ class LaserPageController {
     }
     final receipt =
         _robotConnection.send(message, expectedSession: expectedSession);
+    if (message['f'] == 'STOPCORDONE' && receipt.accepted) {
+      _resetWeldingWhenStopped = true;
+    }
     if (message['f'] == 'WELD') {
+      if (receipt.accepted) _resetWeldingWhenStopped = false;
+      if (receipt.accepted && _weldProgressInvalidated) {
+        _newWeldSession = receipt.session;
+      }
       unawaited(_logCommandRequestToApi(
         command: 'WELD',
         payload: message,
@@ -1924,19 +1956,19 @@ class LaserPageController {
 
   void replacePunti({required PointsFree newPoints}) {
     freezeCursorUntil = null;
-    mySetState?.call(() {
-      points = newPoints;
-    });
+    final removedAllPoints = !points.isEmpty && newPoints.isEmpty;
+    points = newPoints;
+    if (removedAllPoints) resetStratiEseguiti();
+    mySetState?.call(() {});
     notifyPointsOrderChanged();
     redrawPoints();
-    restoreStratiEseguiti();
   }
 
   Future<void> resetPoints() async {
     final send = _sessionSender();
-    mySetState?.call(() {
-      points.deleteAllPoints();
-    });
+    points.deleteAllPoints();
+    resetStratiEseguiti();
+    mySetState?.call(() {});
     pointsFrameEpoch = null;
     hasFrameMismatch = false;
     lastFrameReason = null;
@@ -2355,6 +2387,7 @@ class LaserPageController {
               break;
 
             case 'WeldInfo':
+              if (_weldProgressInvalidated) break;
               final currentCordone = _parseCordoneFromRobotMessage(j['MSG']);
               mySetState?.call(() {
                 //
@@ -2391,6 +2424,8 @@ class LaserPageController {
               });
               break;
             case 'Weld':
+              _observeNewWeldProgress();
+              if (_weldProgressInvalidated) break;
               final currentCordone = _parseCordoneFromRobotMessage(j['MSG']);
               mySetState?.call(() {
                 if (currentCordone != null) {
@@ -2401,6 +2436,7 @@ class LaserPageController {
               });
               break;
             case 'statusCordoni':
+              if (_weldProgressInvalidated) break;
               final currentStrato = _parseStratoFromRobotMessage(j['MSG']);
               final executedCordoni =
                   _parseExecutedCordoniFromRobotMessage(j['MSG']);
@@ -2411,8 +2447,11 @@ class LaserPageController {
                 }
               });
 
-              _robotConnection.enqueueUiWork(
-                  () => _forwardExecutedCordoniToWebview(executedCordoni));
+              _robotConnection.enqueueUiWork(() async {
+                if (!_weldProgressInvalidated) {
+                  await _forwardExecutedCordoniToWebview(executedCordoni);
+                }
+              });
               break;
             case 'SafePosition':
               try {
@@ -2482,6 +2521,7 @@ class LaserPageController {
               }
               break;
             case 'RobotStatus':
+              final ignorePreviousWeldProgress = _weldProgressInvalidated;
               printLog(j['MSG']);
               try {
                 printLog(
@@ -2501,7 +2541,9 @@ class LaserPageController {
                   );
                 }
 
-                if (j['MSG']['Paused'] != null) {
+                if ((!_weldProgressInvalidated ||
+                        _newWeldSession == robotSession) &&
+                    j['MSG']['Paused'] != null) {
                   //
                   if (j['MSG']['Paused'] != paused) {
                     // printLog("RICEVUTO PAUSED: ${j['MSG']['Paused']}");
@@ -2515,6 +2557,9 @@ class LaserPageController {
                       _normalizeWeldingStatus(j['MSG']['status']);
                   _resolvePendingRobotTargetStatus(currentStatus);
                   _applyWeldingStatus(currentStatus);
+                  if (currentStatus == weldingStatusWelding) {
+                    _observeNewWeldProgress();
+                  }
                   _logWeldUiState(sourceStatus: currentStatus);
                 }
 
@@ -2666,7 +2711,9 @@ class LaserPageController {
                     int.tryParse('${j['MSG']['lastCordone']}') ?? -1;
 
                 mySetState?.call(() {
-                  if (lastStrato >= 0 &&
+                  if (!ignorePreviousWeldProgress &&
+                      !_weldProgressInvalidated &&
+                      lastStrato >= 0 &&
                       lastStrato <
                           (stratiEseguiti[settings.serialeRobot]?.length ??
                               0)) {
@@ -2678,7 +2725,9 @@ class LaserPageController {
                     }
                   }
                 });
-                if (j['MSG']['weldedLength'] != null &&
+                if (!ignorePreviousWeldProgress &&
+                    !_weldProgressInvalidated &&
+                    j['MSG']['weldedLength'] != null &&
                     j['MSG']['weldTotalLength'] != null) {
                   mySetState?.call(() {
                     try {
@@ -2912,57 +2961,48 @@ class LaserPageController {
   }
 
   void initializeStratiEseguiti() {
-    mySetState?.call(() {
-      stratiEseguiti[settings.serialeRobot] = [
-        StratoLaser(),
-        StratoLaser(),
-        StratoLaser(),
-        StratoLaser(),
-        StratoLaser(),
-        StratoLaser(),
-        StratoLaser(),
-        StratoLaser(),
-        StratoLaser(),
-        StratoLaser(),
-      ];
-    });
+    stratiEseguiti[settings.serialeRobot] =
+        List.generate(10, (_) => StratoLaser());
+    mySetState?.call(() {});
+  }
+
+  Map<String, dynamic> _readStoredStratiEseguiti() {
+    final raw = box.stringFor(key: Constants.HIVE_LASER_STRATI_ESEGUITI_KEY);
+    if (raw == null || raw.trim().isEmpty) return {};
+    try {
+      return json.decode(raw) as Map<String, dynamic>;
+    } catch (_) {
+      return {};
+    }
   }
 
   void storeStratiEseguiti() {
-    Map<String, dynamic> temp = {};
-    stratiEseguiti.forEach((key, value) {
-      temp[key] = value.map((e) => e.toJson()).toList();
-    });
-
-    final stratiEncoded = json.encode(temp);
-
+    final current = stratiEseguiti[settings.serialeRobot];
+    if (current == null) return;
+    // Each page owns one robot. Merge only its entry into the latest disk
+    // snapshot; another page's cached entries may predate a reset or a weld.
+    final stored = _readStoredStratiEseguiti();
+    stored[settings.serialeRobot] = current.map((e) => e.toJson()).toList();
     box.setString(
-        value: stratiEncoded, key: Constants.HIVE_LASER_STRATI_ESEGUITI_KEY);
+        value: json.encode(stored),
+        key: Constants.HIVE_LASER_STRATI_ESEGUITI_KEY);
   }
 
   void restoreStratiEseguiti() {
-    final stratiRaw =
-        box.stringFor(key: Constants.HIVE_LASER_STRATI_ESEGUITI_KEY);
-
-    if (stratiRaw != null && stratiRaw.trim() != "") {
+    final stored = _readStoredStratiEseguiti()[settings.serialeRobot];
+    if (stored != null) {
       try {
-        final decoded = json.decode(stratiRaw) as Map<String, dynamic>;
-        final Map<String, List<StratoLaser>> tempStratiEseguiti = {};
-        decoded.forEach((key, value) {
-          tempStratiEseguiti[key] = stratoLaserListFromJson(json.encode(value));
-        });
-
-        mySetState?.call(
-          () {
-            stratiEseguiti = tempStratiEseguiti;
-          },
-        );
-      } catch (e) {
-        initializeStratiEseguiti();
+        final restored = stratoLaserListFromJson(json.encode(stored));
+        if (restored.length == 10) {
+          stratiEseguiti[settings.serialeRobot] = restored;
+          mySetState?.call(() {});
+          return;
+        }
+      } catch (_) {
+        // Missing or invalid data affects only this robot.
       }
-    } else {
-      initializeStratiEseguiti();
     }
+    initializeStratiEseguiti();
   }
 
   void printCurrentStratiEseguiti(String title) {
@@ -2987,11 +3027,33 @@ class LaserPageController {
   }
 
   void resetStratiEseguiti() {
-    //
-    //
-    box.setString(value: "", key: Constants.HIVE_LASER_STRATI_ESEGUITI_KEY);
-    //
+    box.setBoolean(value: true, key: _weldProgressInvalidatedKey);
+    _newWeldSession = null;
+    _resetWeldingWhenStopped = false;
+    startedWeldingOnce = false;
+    stratoCominciato = false;
+    cordone = 0;
+    strato = 0;
+    numerocordonitotale = 0;
+    cordoneiniziale = 0;
+    cordonefinale = 0;
+    totalWeldedLength = 0;
+    totalWeldingLength = 0;
     initializeStratiEseguiti();
+    storeStratiEseguiti();
+    unawaited(_forwardExecutedCordoniToWebview(const []));
+  }
+
+  void _resetToGeneratedPathState() {
+    // Keep the generated geometry, viewer and safe position for a fresh WELD.
+    _setPendingRobotTargetStatus(null);
+    paused = true;
+    weldingStatus = weldingStatusInactive;
+    pageState = LaserPanelState.tipoSaldatura;
+    stopwatch.stop();
+    stopwatch.reset();
+    resetStratiEseguiti();
+    dashboardSetPaused?.call(paused);
   }
 
   Future<void> moveToPoint(Point point) async {
@@ -3141,6 +3203,7 @@ class LaserPageController {
 
       if (!_ensureCloudCurvePointsOrdered(context)) return;
 
+      if (currentStratiEseguiti == null) restoreStratiEseguiti();
       int? startingCordone;
 
       if (stratiEseguiti[settings.serialeRobot]![p].lastCordone > 0) {
@@ -4397,21 +4460,7 @@ class LaserPageController {
 
         viewerUrlNotifier.value = finalViewerUrl;
 
-        // New generated path => new welding run: clear executed layers and runtime progress.
-        resetStratiEseguiti();
-        mySetState?.call(() {
-          startedWeldingOnce = false;
-          stratoCominciato = false;
-          paused = true;
-          weldingStatus = weldingStatusInactive;
-          cordone = 0;
-          numerocordonitotale = 0;
-          cordoneiniziale = 0;
-          cordonefinale = 0;
-          totalWeldedLength = 0;
-          totalWeldingLength = 0;
-          pageState = LaserPanelState.tipoSaldatura;
-        });
+        _resetToGeneratedPathState();
         final scriptStr = interpolaResponse.script;
         for (var i = 0; i < scriptStr.length; i += chunkSize) {
           final end = (i + chunkSize < scriptStr.length)
@@ -4892,6 +4941,13 @@ class LaserPageController {
     }
   }
 
+  void removePoint(Point point) {
+    points.remove(point: point);
+    points.normalizeOrder();
+    if (points.isEmpty) resetStratiEseguiti();
+    notifyPointsOrderChanged();
+  }
+
   Future<void> undoLastPoint({required BuildContext context}) async {
     if (points.points.isEmpty) {
       // Snackbar rimosso
@@ -4901,6 +4957,8 @@ class LaserPageController {
     points.points.removeLast();
     if (points.points.isNotEmpty) {
       points.points.first.isFirst = true;
+    } else {
+      resetStratiEseguiti();
     }
     points.normalizeOrder();
     notifyPointsOrderChanged();

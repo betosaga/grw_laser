@@ -678,9 +678,7 @@ class LaserRectangleWithCrossCursorState
           false;
 
       if (confirmed) {
-        widget.controller.points.remove(point: point);
-        widget.controller.points.normalizeOrder();
-        widget.controller.notifyPointsOrderChanged();
+        widget.controller.removePoint(point);
         _fitAll();
         _updateCanGeneratePoints();
         setState(() {});

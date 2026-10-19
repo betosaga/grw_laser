@@ -24,6 +24,8 @@ void main() {
     Hive.init(hiveDirectory.path);
     await Hive.openBox(Constants.HIVE_BOX_NAME);
   });
+  // Every scenario uses serial TEST; persisted resets must not leak between tests.
+  setUp(() async => Hive.box(Constants.HIVE_BOX_NAME).clear());
   tearDownAll(() async {
     await Hive.close();
     await hiveDirectory.delete(recursive: true);

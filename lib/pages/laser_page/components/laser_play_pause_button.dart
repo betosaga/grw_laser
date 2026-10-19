@@ -10,6 +10,8 @@ class LaserPlayPauseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!controller.isWeldingControlsVisible) return const SizedBox.shrink();
+
     final playPauseWidth = MediaQuery.of(context).size.width / 3;
     final isPaused = controller.paused;
     final showStopButton = isPaused;
