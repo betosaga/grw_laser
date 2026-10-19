@@ -11,14 +11,16 @@ import 'package:grw_laser/pages/laser_page_hub/laser_page_hub_controller.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 class LaserPageHub extends StatefulWidget {
-  const LaserPageHub({super.key});
+  const LaserPageHub({super.key, this.controller});
+
+  final LaserPageHubController? controller;
 
   @override
   State<LaserPageHub> createState() => _LaserPageHubState();
 }
 
 class _LaserPageHubState extends State<LaserPageHub> {
-  final controller = LaserPageHubController();
+  late final controller = widget.controller ?? LaserPageHubController();
 
   @override
   void initState() {
@@ -76,6 +78,11 @@ class _LaserPageHubState extends State<LaserPageHub> {
                     controller: controller.pageController,
                     onPageChanged: controller.onLaserPageChanged,
                     itemCount: controller.laserPages.length,
+                    findChildIndexCallback: (key) {
+                      final index = controller.laserPages
+                          .indexWhere((page) => page.key == key);
+                      return index < 0 ? null : index;
+                    },
                     itemBuilder: (context, index) {
                       return controller.laserPages[index];
                     })

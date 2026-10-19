@@ -1,5 +1,3 @@
-// ignore_for_file: must_call_super
-
 import 'dart:core';
 import 'package:flutter/material.dart';
 import 'package:grw_laser/pages/laser_page/components/laser_log_window.dart';
@@ -26,7 +24,7 @@ class LaserState extends State<LaserPage> with AutomaticKeepAliveClientMixin {
     // + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + -
     widget.controller.mySetState = null;
     widget.controller.context = null;
-    widget.controller.onDispose();
+    // The hub owns the connection; a page may be rebuilt while navigating.
     super.dispose();
   }
 
@@ -43,6 +41,7 @@ class LaserState extends State<LaserPage> with AutomaticKeepAliveClientMixin {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     //
     //
     //

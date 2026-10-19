@@ -106,6 +106,9 @@ class LaserPageHubController {
     if (_disposed) return;
     _disposed = true;
     _activeDiscovery?.cancel();
+    for (final page in laserPages) {
+      page.controller.onDispose();
+    }
     context = null;
     mySetState = null;
     pageController.dispose();
@@ -244,14 +247,21 @@ class LaserPageHubController {
           hubController: this,
           settings: selectedRobotDetail,
           selectedWorkMode: tipoControrotaia);
-      final newLaserPage = LaserPage(controller: newLaserController);
+      final newLaserPage = LaserPage(
+        key: ObjectKey(newLaserController),
+        controller: newLaserController,
+      );
 
       laserPages.add(newLaserPage);
       mySetState?.call(() {});
-      if (pageController.hasClients) {
-        pageController.animateToPage(laserPages.length - 1,
+      // Wait for PageView to lay out the newly added page before scrolling.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_disposed || !pageController.hasClients) return;
+        final index = laserPages.indexOf(newLaserPage);
+        if (index < 0) return;
+        pageController.animateToPage(index,
             duration: Duration(milliseconds: 500), curve: Curves.easeInOut);
-      }
+      });
       storeSettingsListToDisk();
       //
     } else {
@@ -417,6 +427,7 @@ class LaserPageHubController {
       });
       for (var i = 0; i < laserPages.length; i++) {
         await laserPages[i].controller.eraseController();
+        laserPages[i].controller.onDispose();
       }
       laserPages = [];
 
@@ -488,7 +499,10 @@ class LaserPageHubController {
 
       try {
         await pageToRemove.controller.eraseController();
-      } catch (_) {}
+      } catch (_) {
+      } finally {
+        pageToRemove.controller.onDispose();
+      }
 
       return true;
     } finally {

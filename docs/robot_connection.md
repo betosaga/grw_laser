@@ -5,6 +5,14 @@ robot non cambia e non vengono aggiunti delimitatori, ID o comandi di ping.
 
 ## Ciclo della connessione
 
+Ogni robot aggiunto con `+` ha il proprio `LaserPageController` e la propria
+`RobotConnection`: socket, sessioni, timer e risposte restano indipendenti.
+Il cambio pagina mantiene attive le connessioni degli altri robot. Le pagine
+hanno chiavi stabili e vengono mantenute in memoria; anche una ricostruzione
+temporanea dell'interfaccia non chiude il socket. La chiusura definitiva del
+controller è gestita dall'hub quando si rimuove il robot, si esegue il logout
+o si chiude l'hub. L'aggiunta attende il layout prima di passare alla nuova pagina.
+
 `RobotConnection` possiede socket, ricezione e timer. C'è un solo tentativo di
 connessione pendente e un solo timer di riconnessione. Una chiusura invalida
 immediatamente la sessione: un tentativo che termina in ritardo distrugge il
@@ -107,6 +115,7 @@ modalità e non garantisce l'assenza di movimenti dopo una reale perdita TCP.
 
 ```sh
 flutter test --no-pub test/robot_connection_test.dart \
+  test/laser_multi_robot_test.dart \
   test/laser_robot_connection_test.dart \
   test/laser_robot_parameter_sync_test.dart \
   test/laser_robot_parametri_order_test.dart
