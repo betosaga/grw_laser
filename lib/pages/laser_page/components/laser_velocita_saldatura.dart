@@ -10,39 +10,41 @@ class LaserVelocitaSaldatura extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          Container(
-              width: 70,
-              margin: EdgeInsets.symmetric(horizontal: 2),
-              child: Text("Velocità\nsaldatura:")),
-          for (int p = 0; p < controller.larghezzasaldatura.length; p++)
-            Expanded(
-                flex: 1,
-                child: Container(
-                    margin: EdgeInsets.symmetric(horizontal: 2),
-                    child: LaserNumericPadInput(
-                      textAlign: TextAlign.center,
-                      decoration: InputDecoration(
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10.0),
-                          borderSide: BorderSide(
-                            color: AppColors.sagaBlue,
-                            width: 2.0,
-                          ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Velocità saldatura',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            for (int p = 0; p < controller.larghezzasaldatura.length; p++)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: LaserNumericPadInput(
+                    textAlign: TextAlign.center,
+                    decoration: InputDecoration(
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10.0),
+                        borderSide: BorderSide(
+                          color: AppColors.sagaBlue,
+                          width: 2.0,
                         ),
-                        contentPadding: EdgeInsets.symmetric(
-                            horizontal: 6), // Imposta il padding a 2 pixel
-                        border: OutlineInputBorder(), // Aggiungi un bordo
-                        labelText: 'V${p + 1}', // Etichetta del campo di testo
                       ),
-                      controller: controller.velocitaSaldaturaController[p],
-                    ))),
-        ],
-      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 6),
+                      border: const OutlineInputBorder(),
+                      labelText: 'V${p + 1}',
+                    ),
+                    controller: controller.velocitaSaldaturaController[p],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

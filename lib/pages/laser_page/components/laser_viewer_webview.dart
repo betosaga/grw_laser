@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:grw_laser/configuration/app_colors.dart';
 import 'package:grw_laser/configuration/constants.dart';
+import 'package:grw_laser/pages/laser_page/components/laser_joystick_overlay_button.dart';
 import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
 import 'package:grw_laser/pages/laser_page/laser_panel_state.dart';
 import 'package:grw_laser/services/vibrator.dart';
@@ -740,61 +741,69 @@ class _LaserViewerWebviewState extends State<LaserViewerWebview>
                     Positioned(
                       right: 16,
                       top: 16,
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(28),
-                          onTap: canReturnToPointSelection
-                              ? () {
-                                  Vibrator.shortVibration();
-                                  widget.controller.unfocusScreen();
-                                  widget.controller.printLog(
-                                    'Tieni premuto per tornare a prendi punti',
-                                  );
-                                }
-                              : null,
-                          onLongPress: canReturnToPointSelection
-                              ? () {
-                                  Vibrator.mediumVibration();
-                                  widget.controller
-                                      .returnToPointSelectionMode();
-                                }
-                              : null,
-                          child: Ink(
-                            decoration: BoxDecoration(
-                              color: canReturnToPointSelection
-                                  ? AppColors.sagaBlue.withValues(alpha: 0.82)
-                                  : AppColors.lightGray.withValues(alpha: 0.82),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          LaserJoystickOverlayButton(
+                              controller: widget.controller),
+                          const SizedBox(width: 8),
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
                               borderRadius: BorderRadius.circular(28),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.18),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: const Padding(
-                              padding: EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 10),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.undo_rounded,
-                                      color: Colors.white, size: 18),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Prendi punti',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
+                              onTap: canReturnToPointSelection
+                                  ? () {
+                                      Vibrator.shortVibration();
+                                      widget.controller.unfocusScreen();
+                                      widget.controller.printLog(
+                                        'Tieni premuto per tornare a prendi punti',
+                                      );
+                                    }
+                                  : null,
+                              onLongPress: canReturnToPointSelection
+                                  ? () {
+                                      Vibrator.mediumVibration();
+                                      widget.controller
+                                          .returnToPointSelectionMode();
+                                    }
+                                  : null,
+                              child: Ink(
+                                decoration: BoxDecoration(
+                                  color: canReturnToPointSelection
+                                      ? AppColors.sagaBlue.withValues(alpha: 0.82)
+                                      : AppColors.lightGray.withValues(alpha: 0.82),
+                                  borderRadius: BorderRadius.circular(28),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.18),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4),
                                     ),
+                                  ],
+                                ),
+                                child: const Padding(
+                                  padding: EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 10),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.undo_rounded,
+                                          color: Colors.white, size: 18),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Prendi punti',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
+                        ],
                       ),
                     ),
                   if (_selectedCordone != null) _buildSelectedCordoneDetails(),

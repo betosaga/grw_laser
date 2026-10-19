@@ -92,6 +92,7 @@ class LaserPageController {
       this.robotSocketConnector,
       String? selectedWorkMode,
       this.tipoControrotaia = 'controrotaiasemplice'}) {
+    _initializeLayerWeldSpeeds();
     for (final parametro in settings.parametri) {
       if (parametro.parametro.trim() == 'job.rail_type' &&
           parametro.valore != null) {
@@ -190,7 +191,7 @@ class LaserPageController {
   List<int> offsetinizio = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45];
   List<int> offsetfine = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
   List<int> larghezzasaldatura = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-  List<int> velocitasaldatura = [10, 10, 10, 10, 10, 10, 10, 10, 10, 10];
+  final List<double> velocitasaldatura = List.filled(10, 10.0);
   List<double> offsetstrato = [0, 1.2, 2.4, 3.6, 4.8, 6.0, 7.2, 8.4, 9.8, 11.0];
   final double defaultSovrapposizioneCordone = 33.3;
   int numerocordonitotale = 0;
@@ -1145,6 +1146,7 @@ class LaserPageController {
     //
     //
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      //
       if (isDisposing) return;
       //
       //
@@ -1167,9 +1169,6 @@ class LaserPageController {
       }
       for (int i = 0; i < larghezzasaldatura.length; i++) {
         larghezzasaldaturaController[i].text = larghezzasaldatura[i].toString();
-      }
-      for (int i = 0; i < velocitasaldatura.length; i++) {
-        velocitaSaldaturaController[i].text = velocitasaldatura[i].toString();
       }
       for (int i = 0; i < offsetstrato.length; i++) {
         offsetStratoController[i].text = offsetstrato[i].toString();
@@ -1535,9 +1534,6 @@ class LaserPageController {
         case 'path.alternating_order':
           alternata = LaserRobotParametro.boolOrDefault(value);
           break;
-        case 'motion.weld.speed_mm_s':
-          _setControllersText(velocitaSaldaturaController, value);
-          break;
         case 'motion.approach.speed_mm_s':
           _setControllerText(velocitaAvvicinamentoController, value);
           break;
@@ -1691,6 +1687,23 @@ class LaserPageController {
     return double.tryParse(controller.text.trim().replaceAll(',', '.'));
   }
 
+  void _initializeLayerWeldSpeeds() {
+    // The database supplies the startup default. Per-layer edits belong only
+    // to this robot's current session and never update the parameter catalog.
+    final configured = _parseDoubleOrDefault(
+        robotParametroValue('motion.weld.speed_mm_s')?.toString(), 10.0);
+    final initialSpeed = configured.isFinite ? configured : 10.0;
+    for (var i = 0; i < velocitasaldatura.length; i++) {
+      velocitasaldatura[i] = initialSpeed;
+      final input = velocitaSaldaturaController[i];
+      input.text = initialSpeed.toString();
+      input.addListener(() {
+        final value = _doubleFromController(input);
+        if (value != null && value.isFinite) velocitasaldatura[i] = value;
+      });
+    }
+  }
+
   void _bindDoubleRobotParameter(TextEditingController controller, String key) {
     controller.addListener(() {
       if (_syncingLegacyParameterControls) return;
@@ -1726,9 +1739,6 @@ class LaserPageController {
     }
     for (final controller in offsetfineController) {
       _bindDoubleRobotParameter(controller, 'path.end_offset_mm');
-    }
-    for (final controller in velocitaSaldaturaController) {
-      _bindDoubleRobotParameter(controller, 'motion.weld.speed_mm_s');
     }
     for (final controller in offsetStratoController) {
       controller.addListener(_syncPreviewOffsetsFromLegacyControls);
@@ -3328,6 +3338,7 @@ class LaserPageController {
         'path.limit_curve_indices': modalitaNuvola ? cordoneLimite : null,
         'path.perimeter_order': modalitaNuvola ? ordine : null,
       };
+      final selectedWeldSpeed = velocitasaldatura[p];
       _applyExecutionRobotParameters({
         ...pointPayload,
         'path.step_mm': stepCordoni,
@@ -3353,9 +3364,6 @@ class LaserPageController {
         'layer.step_y_mm': layerPayload["step_layer_y"],
         'layer.step_z_mm': layerPayload["step_layer_z"],
         'layer.preview_offsets_mm': elencoStepLayer,
-        'motion.weld.speed_mm_s': _parseDoubleOrDefault(
-            velocitaSaldaturaController[strato].text,
-            velocitasaldatura[strato].toDouble()),
         'motion.approach.speed_mm_s': _parseDoubleOrDefault(
             velocitaAvvicinamentoController.text, defaultVelocitaAvvicinamento),
         'motion.departure.speed_mm_s': _parseDoubleOrDefault(
@@ -3382,6 +3390,7 @@ class LaserPageController {
         "safeposition": safePositionDecoded,
         ..._robotParametriPayload(),
         ...pointPayload,
+        'motion.weld.speed_mm_s': selectedWeldSpeed,
       });
       //
       //

@@ -7,6 +7,7 @@ import 'package:grw_laser/configuration/constants.dart';
 import 'package:grw_laser/model/response/response_error.dart';
 import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
 import 'package:grw_laser/pages/laser_page/components/laser_robot_position_banner.dart';
+import 'package:grw_laser/pages/laser_page/components/laser_velocita_saldatura.dart';
 import 'package:grw_laser/pages/laser_page/laser_settings/laser_diagnostics_page.dart';
 import 'package:grw_laser/pages/laser_page/laser_settings/components/laser_robot_compact_field.dart';
 import 'package:grw_laser/pages/laser_page/laser_settings/components/laser_robot_setting_row.dart';
@@ -420,6 +421,12 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
                         title: "PIN MASSA: ",
                         elementsSpacing: fieldSpacing,
                         controller: pinMassaEditingController),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12.0),
+                      child: LaserVelocitaSaldatura(
+                        controller: widget.laserPageController,
+                      ),
+                    ),
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8.0),
                       child: Column(

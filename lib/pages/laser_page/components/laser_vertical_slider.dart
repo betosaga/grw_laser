@@ -6,8 +6,13 @@ import 'package:grw_laser/services/vibrator.dart';
 
 class LaserStepSelector extends StatefulWidget {
   final LaserPageController controller;
+  final VoidCallback? onStepChanged;
 
-  const LaserStepSelector({super.key, required this.controller});
+  const LaserStepSelector({
+    super.key,
+    required this.controller,
+    this.onStepChanged,
+  });
 
   @override
   State<LaserStepSelector> createState() => _LaserStepSelectorState();
@@ -43,6 +48,7 @@ class _LaserStepSelectorState extends State<LaserStepSelector> {
         setState(() {
           widget.controller.step = v;
         });
+        widget.onStepChanged?.call();
       },
       child: Container(
         width: 60,

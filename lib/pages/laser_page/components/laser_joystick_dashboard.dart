@@ -10,8 +10,15 @@ import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
 
 class LaserJoystickDashboard extends StatelessWidget {
   final LaserPageController controller;
+  final bool fitContent;
+  final VoidCallback? onStepChanged;
 
-  const LaserJoystickDashboard({super.key, required this.controller});
+  const LaserJoystickDashboard({
+    super.key,
+    required this.controller,
+    this.fitContent = false,
+    this.onStepChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -45,39 +52,41 @@ class LaserJoystickDashboard extends StatelessWidget {
       ],
     );
 
+    final controls = Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: mirrored
+          ? [
+              jogWidget,
+              SizedBox(width: 56),
+              //centerWidget,
+              SizedBox(width: 56),
+              joystickWidget,
+            ]
+          : [
+              joystickWidget,
+              SizedBox(width: 56),
+              centerWidget,
+              SizedBox(width: 56),
+              jogWidget,
+            ],
+    );
+
     return SizedBox(
-      height: 36.h,
+      height: fitContent ? null : 36.h,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Selettore passo chip
           SizedBox(
             width: double.infinity,
-            child: LaserStepSelector(controller: controller),
-          ),
-          const SizedBox(height: 10),
-          // Controlli joystick
-          Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: mirrored
-                  ? [
-                      jogWidget,
-                      SizedBox(width: 56),
-                      centerWidget,
-                      SizedBox(width: 56),
-                      joystickWidget,
-                    ]
-                  : [
-                      joystickWidget,
-                      SizedBox(width: 56),
-                      centerWidget,
-                      SizedBox(width: 56),
-                      jogWidget,
-                    ],
+            child: LaserStepSelector(
+              controller: controller,
+              onStepChanged: onStepChanged,
             ),
           ),
+          const SizedBox(height: 10),
+          if (fitContent) controls else Expanded(child: controls),
         ],
       ),
     );
