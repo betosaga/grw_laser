@@ -22,6 +22,17 @@ pacchetto pubblicato sono in
 flutter build apk --debug
 ```
 
+Per la release, creare `android/key.properties` con `storePassword`,
+`keyPassword`, `keyAlias` e `storeFile`. Il percorso del keystore in `storeFile`
+può essere assoluto oppure relativo ad `android/app`. Il file delle proprietà
+e i keystore sono esclusi da Git. La release usa questa configurazione di firma.
+
+```sh
+flutter build apk --release
+```
+
+L'APK firmato viene generato in `build/app/outputs/flutter-apk/app-release.apk`.
+
 ## iOS: Swift Package Manager
 
 Le dipendenze native iOS sono gestite con Swift Package Manager, abilitato nel

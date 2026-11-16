@@ -31,6 +31,7 @@ class _TrackedClient extends MockClient {
 LaserPageController _controller(FakeRobotSocket socket) {
   final c = LaserPageController(
     hubController: LaserPageHubController(),
+    selectedWorkMode: 'controrotaiasemplice',
     settings: LaserRobotSettings(
       serialeRobot: 'ROBOT-TEST',
       ipRobot: '127.0.0.1',

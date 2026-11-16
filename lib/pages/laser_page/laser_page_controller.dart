@@ -95,20 +95,13 @@ class LaserPageController {
       required this.settings,
       this.robotSocketConnector,
       String? selectedWorkMode,
-      this.tipoControrotaia = 'controrotaiasemplice'}) {
+      String? tipoControrotaia}) : tipoControrotaia = '' {
     _initializeLayerWeldSpeeds();
-    for (final parametro in settings.parametri) {
-      if (parametro.parametro.trim() == 'job.rail_type' &&
-          parametro.valore != null) {
-        tipoControrotaia =
-            _normalizeControrotaiaValue(parametro.valore.toString());
-        break;
-      }
-    }
+    // Server and persisted modes are configuration, never operator consent.
     if (selectedWorkMode != null) {
-      tipoControrotaia = _normalizeControrotaiaValue(selectedWorkMode);
+      this.tipoControrotaia = _requireWorkMode(selectedWorkMode);
       _workModeConfirmed = true;
-      updateRobotParametroValue('job.rail_type', tipoControrotaia,
+      updateRobotParametroValue('job.rail_type', this.tipoControrotaia,
           syncLegacyControls: false);
     }
   }
@@ -706,28 +699,16 @@ class LaserPageController {
   // Compatibilita con codice esistente: "lunga" = "controrotaiasemplice"
   bool get isControrotaiaLunga => isControrotaiaSemplice;
 
-  String get controrotaiaModeValue {
-    final raw = tipoControrotaia.trim().toLowerCase();
-    switch (raw) {
-      case '0':
-      case 'lunga':
-      case 'controrotaiasemplice':
-      case 'controrotaia semplice':
-      case 'semplice':
-        return 'controrotaiasemplice';
-      case '1':
-      case 'cuore':
-      case 'controrotaiadoppia':
-      case 'controrotaia doppia':
-      case 'doppia':
-        return 'controrotaiadoppia';
-      case '2':
-      case 'piano':
-      case 'piano di rotolamento':
-        return 'piano';
-      default:
-        return 'controrotaiasemplice';
+  String get controrotaiaModeValue => tipoControrotaia;
+
+  String _requireWorkMode(String value) {
+    final normalized = _normalizeControrotaiaValue(value);
+    if (!const {'controrotaiasemplice', 'controrotaiadoppia', 'piano'}
+        .contains(normalized)) {
+      throw ArgumentError.value(value, 'selectedWorkMode',
+          'Selezionare esplicitamente una modalità valida');
     }
+    return normalized;
   }
 
   //
@@ -1239,6 +1220,17 @@ class LaserPageController {
     Duration postSendDelay = Duration.zero,
     int? expectedSession,
   }) async {
+    if (message['f'] == 'SETMODE' || message['f'] == 'WELD') {
+      if (!_workModeConfirmed || tipoControrotaia.isEmpty) {
+        return _robotConnection.reject(message, 'Modalità non selezionata');
+      }
+      message = {
+        ...message,
+        if (message['f'] == 'SETMODE')
+          'tipo_controrotaia': controrotaiaModeValue,
+        if (message['f'] == 'WELD') 'job.rail_type': controrotaiaModeValue,
+      };
+    }
     if (disableMoveToRobotSend && message['f'] == 'MOVETO') {
       return _robotConnection.reject(message, 'MOVETO disabilitato per debug');
     }
@@ -1309,6 +1301,11 @@ class LaserPageController {
         continue;
       }
       payload[key] = parametro.valore;
+    }
+    if (_workModeConfirmed) {
+      payload['job.rail_type'] = controrotaiaModeValue;
+    } else {
+      payload.remove('job.rail_type');
     }
     return payload;
   }
@@ -1471,6 +1468,10 @@ class LaserPageController {
     bool markDirty = true,
     bool syncLegacyControls = true,
   }) {
+    if (key.trim() == 'job.rail_type') {
+      // Generic parameter editors and server responses cannot select a mode.
+      value = tipoControrotaia;
+    }
     final parametro = _robotParametro(key);
     if (parametro == null ||
         _sameRobotParameterValue(parametro.valore, value)) {
@@ -3778,23 +3779,10 @@ class LaserPageController {
     final send = _sessionSender();
     final oldMode = controrotaiaModeValue;
     final settingsRefreshed = !identical(newSettings, settings);
-    // La scelta esplicita dell'operatore prevale sui default del server.
-    // Senza una nuova scelta, job.rail_type resta la fonte canonica.
-    String? configuredRailType;
-    for (final parametro in newSettings.parametri) {
-      if (parametro.parametro.trim() == 'job.rail_type') {
-        configuredRailType = parametro.valore?.toString();
-        break;
-      }
-    }
-    final legacyRailType = newSettings.tipoControrotaia.trim().isNotEmpty
-        ? newSettings.tipoControrotaia
-        : tipoControrotaia;
-    final nextTipo = selectedWorkMode != null
-        ? _normalizeControrotaiaValue(selectedWorkMode)
-        : configuredRailType == null || configuredRailType.isEmpty
-            ? _normalizeControrotaiaValue(legacyRailType)
-            : _normalizeControrotaiaValue(configuredRailType);
+    // Refreshing server settings must never replace the operator's choice.
+    final nextTipo = selectedWorkMode == null
+        ? tipoControrotaia
+        : _requireWorkMode(selectedWorkMode);
 
     final connectionParamsChanged = _connectionParamChanged(
             newSettings.serialeRobot, settings.serialeRobot) ||
@@ -3858,8 +3846,10 @@ class LaserPageController {
     }
     if (selectedWorkMode != null) {
       _workModeConfirmed = true;
+    }
+    if (_workModeConfirmed) {
       updateRobotParametroValue('job.rail_type', nextTipo,
-          syncLegacyControls: false);
+          markDirty: false, syncLegacyControls: false);
     }
     mySetState?.call(() {});
     //
@@ -3908,13 +3898,12 @@ class LaserPageController {
     final send = _sessionSender();
     // Consentito solo in modalità prendi punti (joystick).
     if (pageState != LaserPanelState.joystick) return false;
-    final normalized = _normalizeControrotaiaValue(newTipo);
+    final normalized = _requireWorkMode(newTipo);
     if (normalized == controrotaiaModeValue) return false;
-    mySetState?.call(() {
-      tipoControrotaia = normalized;
-      // Metti l'app in attesa del HOMEREACH che il robot invierà dopo SETMODE.
-      homeReachReceived = false;
-    });
+    tipoControrotaia = normalized;
+    _workModeConfirmed = true;
+    homeReachReceived = false;
+    mySetState?.call(() {});
     _syncScostamentoFieldDefaultsForCurrentMode(force: true);
     _syncOffsetInizioDefaultsForCurrentMode(force: true);
     updateRobotParametroValue('job.rail_type', normalized);

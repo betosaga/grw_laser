@@ -97,6 +97,75 @@ void main() {
     },
   );
 
+  test('server and legacy modes never select an initial work mode', () async {
+    final controller = LaserPageController(
+      hubController: _Hub(),
+      settings: _settings(),
+      tipoControrotaia: 'controrotaiadoppia',
+    );
+    addTearDown(controller.onDispose);
+    expect(controller.controrotaiaModeValue, isEmpty);
+    for (final command in ['SETMODE', 'WELD']) {
+      final receipt = await controller.sendMessageToRobot({
+        'f': command,
+        'tipo_controrotaia': 'piano',
+        'job.rail_type': 'piano',
+      });
+      expect(receipt.accepted, isFalse);
+    }
+    expect(
+      () => LaserPageController(
+        hubController: _Hub(),
+        settings: _settings(),
+        selectedWorkMode: 'invalid',
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  for (final mode in ['controrotaiasemplice', 'controrotaiadoppia', 'piano']) {
+    testWidgets('server refresh cannot replace $mode before SETMODE or WELD', (
+      tester,
+    ) async {
+      final sockets = <FakeRobotSocket>[];
+      final controller = LaserPageController(
+        hubController: _Hub(),
+        settings: _settings(),
+        selectedWorkMode: mode,
+        robotSocketConnector: (_, _, _) async {
+          final socket = FakeRobotSocket();
+          sockets.add(socket);
+          return socket;
+        },
+      );
+      addTearDown(controller.onDispose);
+      controller.mySetState = (callback) => callback?.call();
+      await controller.startConnection();
+      sockets.single.message({'f': 'listening'});
+      await tester.pump();
+      // A fresh server response arrives during the startup grace period.
+      await controller.setRobotSettings(newSettings: _settings());
+      expect(controller.controrotaiaModeValue, mode);
+      expect(controller.robotParametroValue('job.rail_type'), mode);
+      // Generic parameter updates must not override the explicit selection.
+      controller.updateRobotParametroValue('job.rail_type', 'piano');
+      expect(controller.robotParametroValue('job.rail_type'), mode);
+      await tester.pump(const Duration(milliseconds: 1500));
+      final commands = sockets.single.writes.map(jsonDecode).toList();
+      expect(commands.where((m) => m['f'] == 'SETMODE'), hasLength(1));
+      expect(
+        commands.singleWhere((m) => m['f'] == 'SETMODE')['tipo_controrotaia'],
+        mode,
+      );
+      await controller.sendMessageToRobot({
+        'f': 'WELD',
+        'job.rail_type': 'server-default',
+      });
+      expect(jsonDecode(sockets.single.writes.last)['job.rail_type'], mode);
+      controller.onDispose();
+    });
+  }
+
   testWidgets(
     'only enabled modes from fresh detail are offered, with database names',
     (tester) async {
@@ -139,7 +208,10 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('ROBOT-TEST'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Nessuna lavorazione abilitata'), findsOneWidget);
+      expect(
+        find.textContaining('Nessuna lavorazione abilitata'),
+        findsOneWidget,
+      );
       expect(find.widgetWithText(ElevatedButton, 'Annulla'), findsOneWidget);
       expect(find.byType(ElevatedButton), findsOneWidget);
       await tester.tap(find.text('Annulla'));
@@ -171,7 +243,10 @@ void main() {
     await _mount(tester, hub);
     final connection = controller.startConnection();
     await tester.pumpAndSettle();
-    expect(find.textContaining('Nessuna lavorazione abilitata'), findsOneWidget);
+    expect(
+      find.textContaining('Nessuna lavorazione abilitata'),
+      findsOneWidget,
+    );
     await tester.tap(find.text('Annulla'));
     await tester.pumpAndSettle();
     await connection;
