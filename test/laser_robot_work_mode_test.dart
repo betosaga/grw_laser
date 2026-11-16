@@ -4,6 +4,9 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:grw_laser/configuration/constants.dart';
+import 'package:grw_laser/model/point.dart';
+import 'package:grw_laser/pages/laser_page/components/laser_top_actions_bar.dart';
+import 'package:grw_laser/pages/laser_page/laser_panel_state.dart';
 import 'package:grw_laser/pages/laser_page/laser_page.dart';
 import 'package:grw_laser/pages/laser_page/laser_page_controller.dart';
 import 'package:grw_laser/pages/laser_page/laser_settings/model/laser_robot_settings.dart';
@@ -165,6 +168,132 @@ void main() {
       controller.onDispose();
     });
   }
+
+  for (final initial in [
+    'controrotaiasemplice',
+    'controrotaiadoppia',
+    'piano',
+  ]) {
+    for (final target in [
+      'controrotaiasemplice',
+      'controrotaiadoppia',
+      'piano',
+    ]) {
+      if (initial == target) continue;
+      testWidgets('connected dialog changes $initial to $target until HOME', (
+        tester,
+      ) async {
+        tester.view.physicalSize = const Size(1600, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final socket = FakeRobotSocket();
+        final controller = LaserPageController(
+          hubController: _Hub(),
+          settings: _settings(),
+          selectedWorkMode: initial,
+          robotSocketConnector: (_, _, _) async => socket,
+        );
+        addTearDown(controller.onDispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: StatefulBuilder(
+                builder: (context, setState) {
+                  controller.context = context;
+                  controller.mySetState = (callback) =>
+                      setState(() => callback?.call());
+                  return LaserTopActionsBar(controller: controller);
+                },
+              ),
+            ),
+          ),
+        );
+        await controller.startConnection();
+        socket.message({'f': 'listening'});
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 1500));
+        socket.message({'f': 'RobotStatus', 'Status': 'HOMEREACH'});
+        await tester.pumpAndSettle();
+        controller.points.points.add(Point(x: 1, y: 2, z: 3));
+        final before = socket.writes.length;
+        await tester.tap(find.text('ROBOT-TEST'));
+        await tester.pumpAndSettle();
+        expect(find.text('Cambia tipo controrotaia'), findsOneWidget);
+        expect(
+          tester
+              .widget<TextButton>(find.widgetWithText(TextButton, 'CONFERMA'))
+              .onPressed,
+          isNull,
+        );
+        final label = controller.settings.modalitaAbilitate
+            .singleWhere((mode) => mode.codice == target)
+            .nome;
+        await tester.tap(find.widgetWithText(RadioListTile<String>, label));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('ANNULLA'));
+        await tester.pumpAndSettle();
+        expect(controller.controrotaiaModeValue, initial);
+        expect(controller.points.points, hasLength(1));
+        expect(socket.writes, hasLength(before));
+        await tester.tap(find.text('ROBOT-TEST'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(RadioListTile<String>, label));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('CONFERMA'));
+        await tester.pumpAndSettle();
+        final commands = socket.writes.skip(before).map(jsonDecode).toList();
+        expect(commands.map((m) => m['f']), ['RESETSAFEPOSITION', 'SETMODE']);
+        expect(commands.last['tipo_controrotaia'], target);
+        expect(controller.robotParametroValue('job.rail_type'), target);
+        expect(controller.points.points, isEmpty);
+        expect(controller.isWaitingHomeReach, isTrue);
+        expect(controller.canChangeWorkMode, isFalse);
+        expect(await controller.sendSetModeControrotaia(initial), isFalse);
+        socket.message({'f': 'RobotStatus', 'Status': 'HOMEREACH'});
+        await tester.pumpAndSettle();
+        expect(controller.canChangeWorkMode, isTrue);
+        expect(controller.controrotaiaModeValue, target);
+        controller.onDispose();
+      });
+    }
+  }
+
+  testWidgets(
+    'runtime change rejects unavailable modes and disconnected robot',
+    (tester) async {
+      final socket = FakeRobotSocket();
+      final controller = LaserPageController(
+        hubController: _Hub(),
+        settings: LaserRobotSettings.fromJson({
+          ..._settings().toJson(),
+          'modalita_abilitate': [
+            {'codice': 'piano', 'nome': 'Piano'},
+          ],
+        }),
+        selectedWorkMode: 'piano',
+        robotSocketConnector: (_, _, _) async => socket,
+      );
+      addTearDown(controller.onDispose);
+      controller.mySetState = (callback) => callback?.call();
+      await controller.startConnection();
+      controller.homeReachReceived = true;
+      expect(
+        await controller.sendSetModeControrotaia('controrotaiasemplice'),
+        isFalse,
+      );
+      expect(await controller.sendSetModeControrotaia('invalid'), isFalse);
+      expect(await controller.sendSetModeControrotaia('piano'), isFalse);
+      controller.pageState = LaserPanelState.tipoSaldatura;
+      expect(controller.canChangeWorkMode, isFalse);
+      controller.closeSocket();
+      controller.pageState = LaserPanelState.joystick;
+      expect(await controller.sendSetModeControrotaia('piano'), isFalse);
+      expect(socket.writes, isEmpty);
+      expect(controller.controrotaiaModeValue, 'piano');
+      controller.onDispose();
+    },
+  );
 
   testWidgets(
     'only enabled modes from fresh detail are offered, with database names',

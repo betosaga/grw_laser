@@ -43,24 +43,15 @@ class LaserTopActionsBar extends StatelessWidget {
                 style: TextStyle(color: Colors.red, fontSize: 13),
               ),
               const SizedBox(height: 8),
-              RadioListTile<String>(
-                title: const Text('Controrotaia semplice'),
-                value: 'controrotaiasemplice',
-                groupValue: selected,
-                onChanged: (v) => setDialogState(() => selected = v!),
-              ),
-              RadioListTile<String>(
-                title: const Text('Controrotaia doppia'),
-                value: 'controrotaiadoppia',
-                groupValue: selected,
-                onChanged: (v) => setDialogState(() => selected = v!),
-              ),
-              RadioListTile<String>(
-                title: const Text('Piano di rotolamento'),
-                value: 'piano',
-                groupValue: selected,
-                onChanged: (v) => setDialogState(() => selected = v!),
-              ),
+              if (controller.settings.modalitaAbilitate.isEmpty)
+                const Text('Nessuna lavorazione abilitata per questo robot.'),
+              for (final mode in controller.settings.modalitaAbilitate)
+                RadioListTile<String>(
+                  title: Text(mode.nome.isEmpty ? mode.codice : mode.nome),
+                  value: mode.codice,
+                  groupValue: selected,
+                  onChanged: (v) => setDialogState(() => selected = v!),
+                ),
             ],
           ),
           actions: [
@@ -71,7 +62,13 @@ class LaserTopActionsBar extends StatelessWidget {
             ),
             TextButton(
               style: TextButton.styleFrom(foregroundColor: AppColors.sagaBlue),
-              onPressed: () => Navigator.of(ctx).pop(true),
+              onPressed:
+                  selected != controller.controrotaiaModeValue &&
+                      controller.settings.modalitaAbilitate.any(
+                        (mode) => mode.codice == selected,
+                      )
+                  ? () => Navigator.of(ctx).pop(true)
+                  : null,
               child: const Text('CONFERMA'),
             ),
           ],
@@ -108,12 +105,14 @@ class LaserTopActionsBar extends StatelessWidget {
                     ),
                     Spacer(),
                     GestureDetector(
-                      onTap: controller.pageState == LaserPanelState.joystick
+                      onTap: controller.canChangeWorkMode
                           ? () => _showChangeTipoControrotaiaDialog(context)
                           : null,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.center,
@@ -125,10 +124,11 @@ class LaserTopActionsBar extends StatelessWidget {
                                   controller.settings.serialeRobot,
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1,
-                                      fontSize: 20),
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1,
+                                    fontSize: 20,
+                                  ),
                                 ),
                                 Text(
                                   _controrotaiaLabel,
@@ -141,8 +141,7 @@ class LaserTopActionsBar extends StatelessWidget {
                                 ),
                               ],
                             ),
-                            if (controller.pageState ==
-                                LaserPanelState.joystick) ...[
+                            if (controller.canChangeWorkMode) ...[
                               const SizedBox(width: 4),
                               Icon(
                                 Icons.arrow_drop_down,
@@ -159,15 +158,14 @@ class LaserTopActionsBar extends StatelessWidget {
                       valueListenable: controller.modalitaNuvolaNotifier,
                       builder: (_, isNuvola, __) {
                         if (!isNuvola ||
-                            controller.pageState != LaserPanelState.tipoSaldatura) {
+                            controller.pageState !=
+                                LaserPanelState.tipoSaldatura) {
                           return const SizedBox.shrink();
                         }
                         return LaserNuvolaParamsButton(controller: controller);
                       },
                     ),
-                    LaserShowOptionsButton(
-                      controller: controller,
-                    ),
+                    LaserShowOptionsButton(controller: controller),
                     LaserLogButton(controller: controller),
                     LaserSettingsButton(controller: controller),
                     LaserDebugButton(controller: controller),

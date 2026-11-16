@@ -3893,12 +3893,24 @@ class LaserPageController {
     }
   }
 
+  bool get canChangeWorkMode =>
+      !isDisposing &&
+      connectionStatus &&
+      socket != null &&
+      homeReachReceived &&
+      pageState == LaserPanelState.joystick;
+
   /// Cambia il tipo controrotaia a runtime e invia SETMODE al robot.
   Future<bool> sendSetModeControrotaia(String newTipo) async {
     final send = _sessionSender();
-    // Consentito solo in modalità prendi punti (joystick).
-    if (pageState != LaserPanelState.joystick) return false;
-    final normalized = _requireWorkMode(newTipo);
+    // Recheck on confirmation: the connection may have changed in the dialog.
+    if (!canChangeWorkMode) return false;
+    final normalized = _normalizeControrotaiaValue(newTipo);
+    if (!const {'controrotaiasemplice', 'controrotaiadoppia', 'piano'}
+            .contains(normalized) ||
+        !settings.modalitaAbilitate.any((mode) => mode.codice == normalized)) {
+      return false;
+    }
     if (normalized == controrotaiaModeValue) return false;
     tipoControrotaia = normalized;
     _workModeConfirmed = true;
