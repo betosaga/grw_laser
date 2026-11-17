@@ -63,7 +63,7 @@ void main() {
             .groupValue,
         'FLAT',
       );
-      for (final entry in {'Scansione': 'SCAN', 'Piatta': 'FLAT'}.entries) {
+      for (final entry in {'Scansione': 'SCAN', 'Flat': 'FLAT'}.entries) {
         await tester.runAsync(() async {
           await tester.tap(find.text(entry.key));
           await Hive.box(Constants.HIVE_BOX_NAME).flush();

@@ -21,7 +21,7 @@ LaserRobotSettings _settings() => LaserRobotSettings.fromJson({
   'modalita_abilitate': [
     {'codice': 'controrotaiasemplice', 'nome': 'Semplice'},
     {'codice': 'controrotaiadoppia', 'nome': 'Doppia'},
-    {'codice': 'piano', 'nome': 'Piano di rotolamento'},
+    {'codice': 'piano-rotolamento', 'nome': 'Piano di rotolamento'},
   ],
   'tipo_controrotaia': 'controrotaiadoppia',
   'parametri': [
@@ -407,6 +407,73 @@ void main() {
     );
   });
 
+  testWidgets('page startup connects immediately with the selected piano mode', (
+    tester,
+  ) async {
+    final hub = _Hub();
+    await _mount(tester, hub);
+    final sockets = <FakeRobotSocket>[];
+    final controller = LaserPageController(
+      hubController: hub,
+      settings: _settings(),
+      selectedWorkMode: 'piano-rotolamento',
+      robotSocketConnector: (_, _, _) async {
+        final socket = FakeRobotSocket();
+        sockets.add(socket);
+        return socket;
+      },
+    );
+    addTearDown(controller.onDispose);
+    controller.mySetState = (callback) => callback?.call();
+    controller.onInit();
+    await tester.pump();
+    await tester.pump();
+    expect(sockets, hasLength(1));
+    expect(find.text('Tipo di lavorazione'), findsNothing);
+    sockets.single.message({'f': 'listening'});
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1500));
+    expect(
+      sockets.single.writes.map(jsonDecode).firstWhere(
+        (message) => message['f'] == 'SETMODE',
+      )['tipo_controrotaia'],
+      'piano',
+    );
+    controller.onDispose();
+  });
+
+  testWidgets('reselecting a disconnected robot starts its connection', (
+    tester,
+  ) async {
+    final hub = _Hub();
+    await _mount(tester, hub);
+    final sockets = <FakeRobotSocket>[];
+    final controller = LaserPageController(
+      hubController: hub,
+      settings: _settings(),
+      selectedWorkMode: 'piano',
+      robotSocketConnector: (_, _, _) async {
+        final socket = FakeRobotSocket();
+        sockets.add(socket);
+        return socket;
+      },
+    );
+    addTearDown(controller.onDispose);
+    hub.laserPages.add(LaserPage(controller: controller));
+    final selection = hub.selectRobotPressed();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ROBOT-TEST'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Piano di rotolamento'));
+    await tester.pumpAndSettle();
+    await selection;
+    expect(hub.laserPages, hasLength(1));
+    expect(sockets, hasLength(1));
+    expect(controller.controrotaiaModeValue, 'piano');
+    expect(find.text('Tipo di lavorazione'), findsNothing);
+    controller.onDispose();
+  });
+
   testWidgets('cancelling the mode does not add a robot', (tester) async {
     final hub = _Hub();
     await _mount(tester, hub);
@@ -428,6 +495,7 @@ void main() {
       hubController: hub,
       settings: _settings(),
       selectedWorkMode: 'controrotaiasemplice',
+      robotSocketConnector: (_, _, _) async => FakeRobotSocket(),
     );
     addTearDown(controller.onDispose);
     hub.laserPages.add(LaserPage(controller: controller));
@@ -446,6 +514,7 @@ void main() {
       controller.robotParametroValue('job.rail_type'),
       'controrotaiadoppia',
     );
+    controller.onDispose();
   });
 
   testWidgets('restored defaults cannot connect until a mode is selected', (

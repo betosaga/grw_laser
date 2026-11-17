@@ -70,7 +70,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                           value: 'FLAT',
                           enabled: !_saving,
                           activeColor: AppColors.sagaBlue,
-                          title: const Text('Piatta'),
+                          title: const Text('Flat'),
                           subtitle: const Text(
                             'Mostra tutti i robot presenti nell’elenco del server.',
                           ),

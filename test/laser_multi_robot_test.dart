@@ -24,6 +24,8 @@ LaserRobotSettings _settings(int id) => LaserRobotSettings.fromJson({
 });
 
 class _Hub extends LaserPageHubController {
+  _Hub() : super(robotSocketConnector: (_, _, _) async => FakeRobotSocket());
+
   @override
   Future<void> fetchRobotList() async {
     elencoRobotSettings = [_settings(1), _settings(2), _settings(3)];

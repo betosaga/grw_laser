@@ -1175,9 +1175,7 @@ class LaserPageController {
       _initializeLegacyParameterBindings();
       _syncAllLegacyParameterControls();
 
-      if (await _ensureWorkModeSelected()) {
-        buildReconnectionTimer();
-      }
+      await startConnection();
     });
   }
 
@@ -3946,6 +3944,7 @@ class LaserPageController {
         return 'controrotaiadoppia';
       case 'piano':
       case 'piano di rotolamento':
+      case 'piano-rotolamento':
       case '2':
         return 'piano';
       default:

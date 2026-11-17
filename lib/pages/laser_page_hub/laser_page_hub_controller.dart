@@ -13,6 +13,7 @@ import 'package:grw_laser/services/api.dart';
 import 'package:grw_laser/services/hive_disk_encoder.dart';
 import 'package:grw_laser/services/messenger.dart';
 import 'package:grw_laser/services/pager.dart';
+import 'package:grw_laser/services/robot/robot_connection.dart';
 import 'package:grw_laser/services/robot/robot_discovery.dart';
 import 'package:grw_laser/services/user_session_nest.dart';
 
@@ -20,10 +21,13 @@ import 'package:grw_laser/services/user_session_nest.dart';
 //
 //
 class LaserPageHubController {
-  LaserPageHubController({RobotDiscovery Function()? discoveryFactory})
-      : _discoveryFactory = discoveryFactory ?? RobotDiscovery.new;
+  LaserPageHubController({
+    RobotDiscovery Function()? discoveryFactory,
+    this.robotSocketConnector,
+  }) : _discoveryFactory = discoveryFactory ?? RobotDiscovery.new;
 
   final RobotDiscovery Function() _discoveryFactory;
+  final RobotSocketConnector? robotSocketConnector;
   RobotDiscovery? _activeDiscovery;
   bool _selectingRobot = false;
   bool _disposed = false;
@@ -228,23 +232,25 @@ class LaserPageHubController {
       final existingPageIndex = laserPages.indexWhere((page) =>
           page.controller.settings.serialeRobot.trim() == selectedRobotSerial);
       if (existingPageIndex >= 0) {
-        await laserPages[existingPageIndex].controller
-            .setRobotSettings(
-              newSettings: selectedRobotDetail,
-              connectionFieldsFromServer: true,
-              selectedWorkMode: tipoControrotaia,
-            );
+        final controller = laserPages[existingPageIndex].controller;
+        await controller.setRobotSettings(
+          newSettings: selectedRobotDetail,
+          connectionFieldsFromServer: true,
+          selectedWorkMode: tipoControrotaia,
+        );
         storeSettingsListToDisk();
         mySetState?.call(() {});
         if (pageController.hasClients) {
           pageController.animateToPage(existingPageIndex,
               duration: Duration(milliseconds: 500), curve: Curves.easeInOut);
         }
+        await controller.startConnection();
         return;
       }
 
       final newLaserController = LaserPageController(
           hubController: this,
+          robotSocketConnector: robotSocketConnector,
           settings: selectedRobotDetail,
           selectedWorkMode: tipoControrotaia);
       final newLaserPage = LaserPage(

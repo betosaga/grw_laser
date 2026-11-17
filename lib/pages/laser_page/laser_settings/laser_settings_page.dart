@@ -248,6 +248,7 @@ class _LaserSettingsPageState extends State<LaserSettingsPage> {
       case '2':
       case 'piano':
       case 'piano di rotolamento':
+      case 'piano-rotolamento':
         return 'piano';
       default:
         return 'controrotaiasemplice';
