@@ -1,7 +1,7 @@
 <?
 
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+ini_set('display_errors', '0');
+ini_set('display_startup_errors', '0');
 error_reporting(E_ALL);
 
 define("CLIENT_TOKEN", "SAGA-GRWLASER-01770fd0-5913-4ad2-9f94-c4f3f1c65a3b");
@@ -197,7 +197,6 @@ function doLogin($conn, $post)
 	 ],
 	]);
 	$response = curl_exec($curl);
-	curl_close($curl);
 
 	$passwordVerify = password_verify($p, trim($r['password']));
 	if ($passwordVerify)
@@ -315,7 +314,6 @@ function doLoginFakeForTheAdmins($conn, $post)
 	 ],
 	]);
 	$response = curl_exec($curl);
-	curl_close($curl);
 
 	$userToken = getTokenForUser($conn, $r['id'], $platform, $deviceID, $packageName);
 	$permessi = getPermessi($conn, $r['username'], $r['tipoutente']);
@@ -425,6 +423,34 @@ function getSquadre($conn, $post)
 // ---------------------------------------------------------------
 // ROBOT LASER — LISTA E DETTAGLIO
 // ---------------------------------------------------------------
+
+// Reuse the dispatcher's log row, keeping only the activity payload in post_data.
+function logRobotActivity($conn, $post, $files)
+{
+    global $ID_LOG;
+    $headers = apache_request_headers();
+    checkClient($headers);
+    checkAuthorization($conn, $headers);
+    checkParametri(["command", "robot_serial", "parameters"], $post);
+
+    if (!is_string($post["command"]) || trim($post["command"]) === "" ||
+        !is_string($post["robot_serial"]) || trim($post["robot_serial"]) === "" ||
+        !is_string($post["parameters"]) || !is_object(json_decode($post["parameters"])))
+    {
+        responseError(400, 0, "Payload attività robot non valido");
+    }
+
+    if (!is_null($ID_LOG))
+    {
+        MSSQL::queryP($conn, "UPDATE LOGS SET post_data = ? WHERE id = ?", [json_encode([
+            "command" => $post["command"],
+            "robot_serial" => $post["robot_serial"],
+            "parameters" => $post["parameters"],
+        ]), $ID_LOG]);
+    }
+    http_response_code(200);
+    echo json_encode(["message" => "Richiesta comando registrata"]);
+}
 
 // The request dispatcher above records the complete POST (including the raw
 // parametri_json body) with Logger::logAPI and in LOGS. Do not log a second copy

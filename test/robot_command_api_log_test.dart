@@ -77,6 +77,82 @@ void main() {
     ).delete(Constants.HIVE_LASER_COMMAND_API_LOG_ENABLED_KEY);
   });
 
+  for (final cloud in [false, true]) {
+    testWidgets('WELD saves complete interpolation response (cloud=$cloud)', (
+      tester,
+    ) async {
+      final socket = FakeRobotSocket();
+      final c = _controller(socket);
+      c.armPosition = true;
+      c.robotSafePositionFlagNotifier.value = true;
+      c.robotSafePositionCurrentRaw = {
+        'position': [1, 2, 3, 4, 5, 6],
+      };
+      c.modalitaNuvolaNotifier.value = cloud;
+      c.points.points = List.generate(
+        4,
+        (i) => Point(x: i.toDouble(), order: i)
+          ..isBase = i < 2
+          ..isLimite = i >= 2,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) {
+              c.context = context;
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+      final response = {
+        'ok': true,
+        'index': 1,
+        'log_file': '',
+        'grafico_file': '',
+        'plot_json': '{}',
+        'meta_json': '{}',
+        'viewer_url': '/viewer',
+        'script': 'script completo',
+        'extra': {'nullable': null, 'enabled': false, 'label': 'è & +'},
+      };
+      final logs = <http.Request>[];
+      await tester.runAsync(
+        () => http.runWithClient(
+          () async {
+            await c.sendPointsToFastAPI();
+            await c.startConnection();
+            for (var i = 0; i < 2; i++) {
+              final receipt = await c.sendMessageToRobot({'f': 'WELD'});
+              expect(receipt.accepted, isTrue);
+            }
+            await Future<void>.delayed(Duration.zero);
+            expect(socket.writes, hasLength(2));
+            expect(logs, hasLength(2));
+            for (final log in logs) {
+              expect(log.bodyFields['f'], 'logRobotActivity');
+              expect(log.bodyFields['command'], 'WELD');
+              expect(log.bodyFields['robot_serial'], 'ROBOT-TEST');
+              expect(log.bodyFields['parameters'], jsonEncode(response));
+            }
+          },
+          () => MockClient((request) async {
+            if (request.url == URLs.apiurl) {
+              logs.add(request);
+              return http.Response('{}', 500);
+            }
+            expect(
+              request.url.path,
+              cloud ? '/interpola_nuvola' : '/interpola',
+            );
+            return http.Response(jsonEncode(response), 200);
+          }),
+        ),
+      );
+      c.onDispose();
+    });
+  }
+
   test(
     'API logging defaults off and persists both choices across reopen',
     () async {

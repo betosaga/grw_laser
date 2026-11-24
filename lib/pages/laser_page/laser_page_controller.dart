@@ -385,6 +385,7 @@ class LaserPageController {
   final ValueNotifier<String?> viewerUrlNotifier = ValueNotifier<String?>(null);
   final ValueNotifier<String?> lastInterpolaResponseNotifier =
       ValueNotifier<String?>(null);
+  String? _weldInterpolationResponse;
   // 'h' = orizzontale, 'v' = verticale
   final ValueNotifier<String> direzioneCordoniNotifier =
       ValueNotifier<String>('v');
@@ -1238,6 +1239,7 @@ class LaserPageController {
       _resetWeldingWhenStopped = true;
     }
     if (message['f'] == 'WELD') {
+      if (receipt.accepted) unawaited(_logWeldInterpolationToApi());
       if (receipt.accepted) _resetWeldingWhenStopped = false;
       if (receipt.accepted && _weldProgressInvalidated) {
         _newWeldSession = receipt.session;
@@ -1255,6 +1257,22 @@ class LaserPageController {
       await Future.delayed(postSendDelay);
     }
     return receipt;
+  }
+
+  Future<void> _logWeldInterpolationToApi() async {
+    final response = _weldInterpolationResponse;
+    if (response == null) return;
+    try {
+      await Api.request({
+        'f': 'logRobotActivity',
+        'command': 'WELD',
+        'robot_serial': settings.serialeRobot,
+        'parameters': response,
+      }, timeout: const Duration(seconds: 10));
+      printLog('[WELD_API_LOG] richiesta registrata');
+    } catch (e) {
+      printLog('[WELD_API_LOG] registrazione fallita: $e');
+    }
   }
 
   /// Snapshot the complete outbound payload before the first await. Logging
@@ -4467,6 +4485,7 @@ class LaserPageController {
 
       if (response.isSuccess) {
         final interpolaResponse = interpolaResponseFromJson(bodyStr);
+        _weldInterpolationResponse = bodyStr;
 
         final finalViewerUrl =
             '$serverBaseUrl${interpolaResponse.viewerUrl}${interpolaResponse.viewerUrl.contains('?') ? '&' : '?'}t=${DateTime.now().millisecondsSinceEpoch}';
@@ -4565,6 +4584,7 @@ class LaserPageController {
         notifyPointsOrderChanged();
         viewerUrlNotifier.value = null;
         lastInterpolaResponseNotifier.value = null;
+        _weldInterpolationResponse = null;
         setCanGeneratePoints(false);
         allPointsRestored = false;
         allPointsSet = false;
@@ -4904,6 +4924,7 @@ class LaserPageController {
         notifyPointsOrderChanged();
         viewerUrlNotifier.value = null;
         lastInterpolaResponseNotifier.value = null;
+        _weldInterpolationResponse = null;
       }
 
       // + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - + - +

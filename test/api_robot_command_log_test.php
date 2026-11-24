@@ -10,12 +10,20 @@ class Logger
 class MSSQL
 {
     public static $logPost;
+    public static $functionCalled;
     public static function queryP_IDV($conn, $sql, $params)
     {
         self::$logPost = $params[6];
+        self::$functionCalled = $params[5];
         return 1;
     }
-    public static function queryP($conn, $sql, $params) { return true; }
+    public static function queryP($conn, $sql, $params) {
+        if ($sql === "UPDATE LOGS SET post_data = ? WHERE id = ?") {
+            if ($params[1] !== 1) throw new RuntimeException("Wrong log row");
+            self::$logPost = $params[0];
+        }
+        return true;
+    }
 }
 
 function apache_request_headers()
@@ -45,6 +53,10 @@ $_POST = [
     "stato_invio" => $command === "WELD" ? "socket_write_attempted" : "request_started",
     "parametri_json" => $payload,
 ];
+if ($command === "weld-response") {
+    $payload = json_encode(["script" => "complete", "extra" => [null, false, "è & +"]]);
+    $_POST = ["f" => "logRobotActivity", "command" => "WELD", "robot_serial" => "ROBOT-TEST", "parameters" => $payload];
+}
 $_FILES = [];
 $_SERVER["REMOTE_ADDR"] = "127.0.0.1";
 $conn = null;
@@ -61,7 +73,9 @@ if (http_response_code() !== 200 || json_decode($body, true)["message"] !== "Ric
 }
 if (count(Logger::$calls) !== 1 || Logger::$calls[0][0] !== "SAGAGRWLASER" ||
     strpos(Logger::$calls[0][1], $payload) === false ||
-    json_decode(MSSQL::$logPost, true)["parametri_json"] !== $payload)
+    ($command === "weld-response"
+        ? MSSQL::$functionCalled !== "logRobotActivity" || json_decode(MSSQL::$logPost, true) !== ["command" => "WELD", "robot_serial" => "ROBOT-TEST", "parameters" => $payload]
+        : json_decode(MSSQL::$logPost, true)["parametri_json"] !== $payload))
 {
     throw new RuntimeException("Missing, duplicated or altered command log");
 }
